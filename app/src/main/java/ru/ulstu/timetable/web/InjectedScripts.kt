@@ -16,6 +16,7 @@ object InjectedScripts {
      */
     fun pairFilter(
         visiblePairs: List<Int>,
+        optionalPairs: List<Int>,
         hideEmptyDays: Boolean,
         hidePast: Boolean,
         nowMillis: Long
@@ -24,6 +25,7 @@ object InjectedScripts {
 (function(){
   try {
     var VISIBLE = __VISIBLE__;
+    var OPTIONAL = __OPTIONAL__;
     var HIDE_EMPTY = __HIDE_EMPTY__;
     var HIDE_PAST = __HIDE_PAST__;
     var NOW = new Date(__NOW__);
@@ -37,6 +39,10 @@ object InjectedScripts {
     }
     function isVisible(p){
       for (var i = 0; i < VISIBLE.length; i++) if (VISIBLE[i] === p) return true;
+      return false;
+    }
+    function isOptional(p){
+      for (var i = 0; i < OPTIONAL.length; i++) if (OPTIONAL[i] === p) return true;
       return false;
     }
     function parseRange(s){
@@ -86,6 +92,11 @@ object InjectedScripts {
             keep = false;
           }
           cells[c].style.display = keep ? '' : 'none';
+          // Пометка «необязательная пара» — приглушённый текст с пунктирной рамкой.
+          if (isDay) {
+            if (isOptional(c)) cells[c].classList.add('tt-opt');
+            else cells[c].classList.remove('tt-opt');
+          }
         }
 
         if (!isDay) { rows[r].style.display = ''; continue; }
@@ -116,6 +127,7 @@ object InjectedScripts {
 """
         return template
             .replace("__VISIBLE__", visiblePairs.joinToString(",", "[", "]"))
+            .replace("__OPTIONAL__", optionalPairs.joinToString(",", "[", "]"))
             .replace("__HIDE_EMPTY__", hideEmptyDays.toString())
             .replace("__HIDE_PAST__", hidePast.toString())
             .replace("__NOW__", nowMillis.toString())
@@ -128,6 +140,7 @@ object InjectedScripts {
     fun styleSheet(dark: Boolean, fitWidth: Boolean): String {
         val css = buildString {
             append(BASE_CSS)
+            append(MARK_CSS)
             if (fitWidth) append(FIT_CSS)
             if (dark) append(DARK_CSS)
         }
@@ -195,6 +208,102 @@ object InjectedScripts {
     fun scrollTo(y: Int): String =
         "(function(){try{window.scrollTo(0, $y);}catch(e){}})();"
 
+    /**
+     * Поиск по парам в уже открытой странице.
+     *
+     * Найденные ячейки подсвечиваются, а весь остальной текст становится
+     * полупрозрачным — так нужная пара видна сразу. Возвращает число совпадений.
+     */
+    fun searchApply(query: String): String {
+        val template = """
+(function(){
+  try {
+    var NEEDLE = __QUERY__;
+    var HIT = 'tt-search-hit';
+    var DIM = 'tt-search-dim';
+    var NBSP = String.fromCharCode(160);
+
+    function txt(el){
+      if (!el) return '';
+      var s = el.innerText;
+      if (s === undefined || s === null) s = el.textContent || '';
+      return s.split(NBSP).join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    var allCells = document.querySelectorAll('td');
+    for (var i = 0; i < allCells.length; i++) {
+      allCells[i].classList.remove(HIT);
+      allCells[i].classList.remove(DIM);
+    }
+    window.__ttHits = [];
+    window.__ttHitIndex = 0;
+
+    if (!NEEDLE) return 0;
+    var needle = NEEDLE.toLowerCase();
+
+    // Ищем только среди ячеек занятий: первая колонка — день недели.
+    var hits = [];
+    var tables = document.getElementsByTagName('TABLE');
+    for (var t = 0; t < tables.length; t++) {
+      var rows = tables[t].rows;
+      if (!rows) continue;
+      for (var r = 0; r < rows.length; r++) {
+        var cells = rows[r].cells;
+        if (!cells || cells.length < 2) continue;
+        if (!/^([А-Яа-яЁё]{3})\s*,/.test(txt(cells[0]))) continue;
+        for (var c = 1; c < cells.length; c++) {
+          var text = txt(cells[c]);
+          if (text && text.toLowerCase().indexOf(needle) >= 0) hits.push(cells[c]);
+        }
+      }
+    }
+
+    if (!hits.length) return 0;
+
+    for (var i = 0; i < allCells.length; i++) allCells[i].classList.add(DIM);
+    for (var i = 0; i < hits.length; i++) {
+      hits[i].classList.remove(DIM);
+      hits[i].classList.add(HIT);
+    }
+    window.__ttHits = hits;
+    window.__ttHitIndex = 0;
+    if (hits[0].scrollIntoView) hits[0].scrollIntoView({ block: 'center' });
+    return hits.length;
+  } catch (e) { return -1; }
+})();
+"""
+        return template.replace("__QUERY__", jsString(query))
+    }
+
+    /** Переход к следующему (delta = 1) или предыдущему (delta = -1) совпадению. */
+    fun searchStep(delta: Int): String = """
+(function(){
+  try {
+    var hits = window.__ttHits || [];
+    if (!hits.length) return 0;
+    var i = ((window.__ttHitIndex || 0) + (__DELTA__) + hits.length) % hits.length;
+    window.__ttHitIndex = i;
+    if (hits[i] && hits[i].scrollIntoView) hits[i].scrollIntoView({ block: 'center' });
+    return i + 1;
+  } catch (e) { return 0; }
+})();
+""".replace("__DELTA__", delta.toString())
+
+    /** Снять подсветку поиска. */
+    fun searchClear(): String = """
+(function(){
+  try {
+    var all = document.querySelectorAll('td');
+    for (var i = 0; i < all.length; i++) {
+      all[i].classList.remove('tt-search-hit');
+      all[i].classList.remove('tt-search-dim');
+    }
+    window.__ttHits = [];
+    window.__ttHitIndex = 0;
+  } catch (e) { }
+})();
+"""
+
     private const val BASE_CSS = """
 * { -webkit-text-size-adjust: 100% !important; }
 html, body { margin: 0 !important; padding: 0 !important; }
@@ -230,6 +339,25 @@ td, th {
   padding: 3px 2px !important;
 }
 img, video { max-width: 100% !important; height: auto !important; }
+"""
+
+    /**
+     * Пометки поверх расписания: подсветка поиска и «необязательные» пары.
+     * Идут до DARK_CSS в порядке возрастания приоритета: если ячейка и необязательная,
+     * и найдена поиском, должна победить подсветка поиска.
+     */
+    private const val MARK_CSS = """
+.tt-opt {
+  opacity: 0.5 !important;
+  outline: 2px dashed rgba(46, 91, 255, 0.7) !important;
+  outline-offset: -2px !important;
+}
+.tt-search-dim { opacity: 0.22 !important; }
+.tt-search-hit {
+  opacity: 1 !important;
+  background: rgba(255, 205, 60, 0.38) !important;
+  box-shadow: inset 0 0 0 2px #F2A93B !important;
+}
 """
 
     private const val DARK_CSS = """

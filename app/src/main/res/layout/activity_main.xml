@@ -25,23 +25,63 @@
         android:max="100"
         android:visibility="gone" />
 
-    <HorizontalScrollView
-        android:id="@+id/quickBar"
+    <!-- Поиск по парам в уже открытой странице; появляется по кнопке в панели. -->
+    <LinearLayout
+        android:id="@+id/searchBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="?attr/colorSurface"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingBottom="4dp"
-        android:scrollbars="none">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="6dp"
+        android:visibility="gone">
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/pairChips"
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="@string/search_pairs_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/searchCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:singleLine="true"
-            app:singleSelection="false" />
-    </HorizontalScrollView>
+            android:layout_marginStart="6dp"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textColor="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/searchPrev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/search_prev"
+            android:src="@drawable/ic_chevron_left" />
+
+        <ImageButton
+            android:id="@+id/searchNext"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/search_next"
+            android:src="@drawable/ic_chevron_right" />
+
+        <ImageButton
+            android:id="@+id/searchClose"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/close"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
 
     <include
         android:id="@+id/nextBar"

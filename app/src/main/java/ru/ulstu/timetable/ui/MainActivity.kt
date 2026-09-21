@@ -12,8 +12,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.MenuItem
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -26,7 +29,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,6 +65,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private var showingCachedCopy = false
     private var pendingScrollRestore = -1
     private var lastPauseAt = 0L
+
+    private var searchQuery = ""
+    private var searchHitCount = 0
+    private var searchDebounce: Runnable? = null
 
     private val pickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -106,6 +112,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         setupWebView()
         setupSwipeRefresh()
         setupBackHandling()
+        setupSearch()
 
         val restoredState = savedInstanceState
         prefs.register(prefsListener)
@@ -274,6 +281,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
             showFilterSheet()
             true
         }
+        R.id.action_search -> {
+            toggleSearch()
+            true
+        }
         R.id.action_group -> {
             pickerLauncher.launch(Intent(this, GroupPickerActivity::class.java))
             true
@@ -315,11 +326,12 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun showFilterSheet() {
         val sheet = FilterBottomSheet()
         sheet.pairCount = prefs.lastPairCount
-        sheet.onApply = { hidden, hideEmpty, hidePast ->
-            prefs.hiddenPairs = hidden
-            prefs.hideEmptyDays = hideEmpty
-            prefs.hidePast = hidePast
-            buildQuickFilter()
+        sheet.onApply = { state ->
+            prefs.hiddenPairs = state.hiddenPairs
+            prefs.optionalPairs = state.optionalPairs
+            prefs.hideEmptyDays = state.hideEmptyDays
+            prefs.hidePast = state.hidePast
+            prefs.skipOptionalInWidget = state.skipOptionalInWidget
             evaluatePairFilter()
             updateNextLessonBar()
             cachedSchedule?.let { WidgetRenderer.updateAll(this) }
@@ -332,36 +344,11 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun visiblePairs(): List<Int> =
         (1..prefs.lastPairCount).filter { it !in prefs.hiddenPairs }
 
-    private fun buildQuickFilter() {
-        binding.quickBar.visibility = if (prefs.quickFilterBar) View.VISIBLE else View.GONE
-        binding.pairChips.removeAllViews()
-        if (!prefs.quickFilterBar) return
-
-        for (pair in 1..prefs.lastPairCount) {
-            val chip = Chip(this).apply {
-                text = getString(R.string.pair_short, pair)
-                isCheckable = true
-                // Сначала состояние, потом слушатель — иначе получим ложное событие.
-                isChecked = pair !in prefs.hiddenPairs
-                setOnCheckedChangeListener { _, checked -> onPairChipToggled(pair, checked) }
-            }
-            binding.pairChips.addView(chip)
-        }
-    }
-
-    private fun onPairChipToggled(pair: Int, visible: Boolean) {
-        val hidden = prefs.hiddenPairs.toMutableSet()
-        if (visible) hidden.remove(pair) else hidden.add(pair)
-        prefs.hiddenPairs = hidden
-        evaluatePairFilter()
-        updateNextLessonBar()
-        cachedSchedule?.let { WidgetRenderer.updateAll(this) }
-    }
-
     private fun evaluatePairFilter() {
         if (binding.webView.url == null) return
         val script = InjectedScripts.pairFilter(
             visiblePairs(),
+            prefs.optionalPairs.sorted(),
             prefs.hideEmptyDays,
             prefs.hidePast,
             System.currentTimeMillis()
@@ -369,13 +356,86 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         binding.webView.evaluateJavascript(script, null)
     }
 
-    // --- Настройки на лету --------------------------------------------------
+    // --- Поиск по парам -----------------------------------------------------
 
+    private fun setupSearch() {
+        binding.searchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                searchQuery = s?.toString().orEmpty()
+                searchDebounce?.let { handler.removeCallbacks(it) }
+                val runnable = Runnable { applySearch() }
+                searchDebounce = runnable
+                handler.postDelayed(runnable, SEARCH_DEBOUNCE_MS)
+            }
+        })
+
+        binding.searchClose.setOnClickListener {
+            searchQuery = ""
+            binding.searchInput.setText("")
+            binding.searchBar.visibility = View.GONE
+            binding.searchCount.text = ""
+            binding.webView.evaluateJavascript(InjectedScripts.searchClear(), null)
+            hideKeyboard()
+        }
+        binding.searchNext.setOnClickListener { stepSearch(1) }
+        binding.searchPrev.setOnClickListener { stepSearch(-1) }
+    }
+
+    private fun toggleSearch() {
+        if (binding.searchBar.visibility == View.VISIBLE) {
+            binding.searchClose.performClick()
+        } else {
+            binding.searchBar.visibility = View.VISIBLE
+            binding.searchInput.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.searchInput, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
+    }
+
+    /** Подсвечивает найденные пары; всё остальное на странице становится полупрозрачным. */
+    private fun applySearch() {
+        if (binding.webView.url == null) return
+        val query = searchQuery.trim()
+        if (query.isEmpty()) {
+            searchHitCount = 0
+            binding.searchCount.text = ""
+            binding.webView.evaluateJavascript(InjectedScripts.searchClear(), null)
+            return
+        }
+        binding.webView.evaluateJavascript(InjectedScripts.searchApply(query)) { result ->
+            val count = result?.trim('"')?.toIntOrNull() ?: 0
+            searchHitCount = count.coerceAtLeast(0)
+            binding.searchCount.text = when {
+                count > 0 -> getString(R.string.search_found, count)
+                count == 0 -> getString(R.string.search_nothing)
+                else -> ""
+            }
+        }
+    }
+
+    private fun stepSearch(delta: Int) {
+        if (searchQuery.isBlank() || binding.webView.url == null) return
+        binding.webView.evaluateJavascript(InjectedScripts.searchStep(delta)) { result ->
+            val position = result?.trim('"')?.toIntOrNull() ?: 0
+            if (position > 0 && searchHitCount > 0) {
+                binding.searchCount.text =
+                    getString(R.string.search_position, position, searchHitCount)
+            }
+        }
+    }
+
+    // --- Настройки на лету --------------------------------------------------
     private fun applyPreferences() {
         val settings = binding.webView.settings
         settings.textZoom = prefs.textZoom
         applyUserAgent()
-        buildQuickFilter()
         binding.webView.evaluateJavascript(
             InjectedScripts.styleSheet(prefs.siteDarkTheme, prefs.fitWidth), null
         )
@@ -419,6 +479,8 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
                 InjectedScripts.styleSheet(prefs.siteDarkTheme, prefs.fitWidth), null
             )
             evaluatePairFilter()
+            // После перезагрузки подсветка поиска ставится заново.
+            if (searchQuery.isNotBlank()) applySearch()
 
             if (pendingScrollRestore > 0) {
                 binding.webView.evaluateJavascript(
@@ -468,10 +530,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     ) {
         currentPageIsSchedule = isSchedule
 
-        if (pairCount > 0 && pairCount != prefs.lastPairCount) {
-            prefs.lastPairCount = pairCount
-            buildQuickFilter()
-        }
+        if (pairCount > 0) prefs.lastPairCount = pairCount
         if (title.isNotBlank()) {
             prefs.lastTitle = title
             binding.toolbar.title = title
@@ -511,7 +570,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         }
 
         val now = LocalDateTime.now()
-        val slot = ScheduleLogic.nextSlot(schedule, now, prefs.hiddenPairs)
+        val slot = ScheduleLogic.nextSlot(schedule, now, prefs.pairsExcludedFromWidget())
         if (slot == null) {
             bar.root.visibility = View.GONE
             return
@@ -611,6 +670,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     companion object {
         private const val PERIODIC_REFRESH_MS = 15 * 60 * 1000L
         private const val IDLE_REFRESH_MS = 5 * 60 * 1000L
+        private const val SEARCH_DEBOUNCE_MS = 250L
 
         private val NO_CACHE_HEADERS = mapOf(
             "Cache-Control" to "no-cache, no-store",

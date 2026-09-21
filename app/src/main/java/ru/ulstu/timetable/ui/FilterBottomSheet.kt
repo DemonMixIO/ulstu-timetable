@@ -10,19 +10,30 @@ import ru.ulstu.timetable.R
 import ru.ulstu.timetable.data.Prefs
 import ru.ulstu.timetable.databinding.SheetFilterBinding
 
+/** Итоговое состояние фильтра расписания. */
+data class FilterState(
+    val hiddenPairs: Set<Int>,
+    val optionalPairs: Set<Int>,
+    val hideEmptyDays: Boolean,
+    val hidePast: Boolean,
+    val skipOptionalInWidget: Boolean
+)
+
 /**
- * Фильтр по парам: снятая галочка прячет столбец с этой парой
- * в таблице расписания.
+ * Фильтр по парам — единственное место, где настраиваются пары:
+ *
+ *  - снятая галочка в «Какие пары показывать» прячет столбец с этой парой;
+ *  - отмеченная в «Необязательные пары» показывается приглушённо с пунктирной
+ *    рамкой и (по умолчанию) не попадает в виджет и напоминания.
  */
 class FilterBottomSheet : BottomSheetDialogFragment() {
 
     private var _binding: SheetFilterBinding? = null
     private val binding get() = _binding!!
 
-    /** (скрытые пары, скрывать пустые дни, скрывать прошедшие) */
-    var onApply: ((Set<Int>, Boolean, Boolean) -> Unit)? = null
+    var onApply: ((FilterState) -> Unit)? = null
 
-    /** Номера пар, которые сейчас показаны. */
+    /** Сколько пар в таблице на текущей странице. */
     var pairCount: Int = 8
 
     override fun onCreateView(
@@ -37,16 +48,18 @@ class FilterBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val prefs = Prefs(requireContext())
+        val count = pairCount.coerceAtLeast(1)
 
-        var count = pairCount.coerceAtLeast(1)
         val hidden = prefs.hiddenPairs.toMutableSet()
+        val optional = prefs.optionalPairs.toMutableSet()
 
-        fun rebuildChips() {
+        fun rebuildVisibility() {
             binding.chips.removeAllViews()
             for (pair in 1..count) {
                 val chip = Chip(requireContext()).apply {
                     text = getString(R.string.pair_short, pair)
                     isCheckable = true
+                    // Сначала состояние, потом слушатель — иначе поймаем ложное событие.
                     isChecked = pair !in hidden
                     setOnCheckedChangeListener { _, checked ->
                         if (checked) hidden.remove(pair) else hidden.add(pair)
@@ -56,22 +69,47 @@ class FilterBottomSheet : BottomSheetDialogFragment() {
             }
         }
 
-        rebuildChips()
+        fun rebuildOptional() {
+            binding.optionalChips.removeAllViews()
+            for (pair in 1..count) {
+                val chip = Chip(requireContext()).apply {
+                    text = getString(R.string.pair_short, pair)
+                    isCheckable = true
+                    isChecked = pair in optional
+                    setOnCheckedChangeListener { _, checked ->
+                        if (checked) optional.add(pair) else optional.remove(pair)
+                    }
+                }
+                binding.optionalChips.addView(chip)
+            }
+        }
+
+        rebuildVisibility()
+        rebuildOptional()
 
         binding.hideEmptyDays.isChecked = prefs.hideEmptyDays
         binding.hidePast.isChecked = prefs.hidePast
+        binding.skipOptional.isChecked = prefs.skipOptionalInWidget
 
         binding.selectAll.setOnClickListener {
             hidden.clear()
-            rebuildChips()
+            rebuildVisibility()
         }
         binding.selectNone.setOnClickListener {
             for (pair in 1..count) hidden.add(pair)
-            rebuildChips()
+            rebuildVisibility()
         }
 
         binding.applyButton.setOnClickListener {
-            onApply?.invoke(hidden.toSet(), binding.hideEmptyDays.isChecked, binding.hidePast.isChecked)
+            onApply?.invoke(
+                FilterState(
+                    hiddenPairs = hidden.toSet(),
+                    optionalPairs = optional.toSet(),
+                    hideEmptyDays = binding.hideEmptyDays.isChecked,
+                    hidePast = binding.hidePast.isChecked,
+                    skipOptionalInWidget = binding.skipOptional.isChecked
+                )
+            )
             dismiss()
         }
     }

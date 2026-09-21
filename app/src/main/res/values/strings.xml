@@ -44,7 +44,10 @@
     <string name="filter_hide_empty_days">Скрывать дни без пар</string>
     <string name="filter_hide_past">Скрывать прошедшие пары</string>
     <string name="filter_hide_past_hint">Прячет пары, которые уже закончились (и прошедшие дни текущей недели).</string>
-    <string name="filter_show_quick_bar">Показывать быстрый фильтр под панелью</string>
+    <string name="filter_show_pairs_title">Какие пары показывать</string>
+    <string name="filter_optional_title">Необязательные пары</string>
+    <string name="filter_optional_hint">Отмеченные пары показываются приглушённо с пунктирной рамкой — ходить на них не обязательно.</string>
+    <string name="filter_skip_optional">Не показывать необязательные в виджете и напоминаниях</string>
     <string name="pair_number">%d-я пара</string>
     <string name="pair_short">%d</string>
     <string name="pairs_all_shown">Показаны все пары</string>
@@ -54,6 +57,17 @@
         <item quantity="many">Скрыто %d пар</item>
         <item quantity="other">Скрыто %d пары</item>
     </plurals>
+
+    <!-- Поиск по парам -->
+    <string name="menu_search">Поиск по парам</string>
+    <string name="search_pairs_hint">Поиск: предмет, преподаватель, аудитория</string>
+    <string name="search_found">найдено: %d</string>
+    <string name="search_nothing">не найдено</string>
+    <string name="search_position">%1$d из %2$d</string>
+    <string name="search_prev">Предыдущее совпадение</string>
+    <string name="search_next">Следующее совпадение</string>
+
+    <string name="pairs_optional_count">необязательных: %d</string>
 
     <!-- Следующая пара -->
     <string name="next_lesson_title">Следующая пара</string>

@@ -68,7 +68,7 @@ object WidgetRenderer {
             return views
         }
 
-        val slot = ScheduleLogic.nextSlot(schedule, now, prefs.hiddenPairs)
+        val slot = ScheduleLogic.nextSlot(schedule, now, prefs.pairsExcludedFromWidget())
         if (slot == null) {
             val hasAny = ScheduleLogic.slots(schedule).isNotEmpty()
             views.setTextViewText(R.id.widget_badge, "–")
@@ -123,7 +123,7 @@ object WidgetRenderer {
         views.setTextViewText(R.id.widget_date, ScheduleLogic.dateLabel(today))
 
         val slots = ScheduleLogic.slotsOn(schedule, today)
-            .filter { it.pairIndex !in prefs.hiddenPairs }
+            .filter { it.pairIndex !in prefs.pairsExcludedFromWidget() }
 
         if (slots.isEmpty()) {
             views.addView(R.id.widget_rows, messageRow(context, R.string.lessons_none))

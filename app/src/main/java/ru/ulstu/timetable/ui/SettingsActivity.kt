@@ -96,7 +96,7 @@ class SettingsActivity : AppCompatActivity() {
         SettingsRows.clickRow(
             this, content,
             R.string.title_filter,
-            hiddenPairsLabel()
+            pairsLabel()
         ) { showFilterSheet() }
 
         SettingsRows.switchRow(
@@ -110,12 +110,6 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_hide_past, null,
             prefs.hidePast
         ) { prefs.hidePast = it }
-
-        SettingsRows.switchRow(
-            this, content,
-            R.string.settings_quick_bar, R.string.settings_quick_bar_desc,
-            prefs.quickFilterBar
-        ) { prefs.quickFilterBar = it }
 
         // --- Виджет и уведомления ---
         SettingsRows.section(this, content, R.string.settings_section_widget)
@@ -190,24 +184,30 @@ class SettingsActivity : AppCompatActivity() {
     private fun showFilterSheet() {
         val sheet = FilterBottomSheet()
         sheet.pairCount = prefs.lastPairCount
-        sheet.onApply = { hidden, hideEmpty, hidePast ->
-            prefs.hiddenPairs = hidden
-            prefs.hideEmptyDays = hideEmpty
-            prefs.hidePast = hidePast
+        sheet.onApply = { state ->
+            prefs.hiddenPairs = state.hiddenPairs
+            prefs.optionalPairs = state.optionalPairs
+            prefs.hideEmptyDays = state.hideEmptyDays
+            prefs.hidePast = state.hidePast
+            prefs.skipOptionalInWidget = state.skipOptionalInWidget
             WidgetRenderer.updateAll(this)
             rebuild()
         }
         sheet.show(supportFragmentManager, "filter")
     }
 
-    private fun hiddenPairsLabel(): String {
+    private fun pairsLabel(): String {
         val hidden = prefs.hiddenPairs
-        return if (hidden.isEmpty()) {
+        val hiddenText = if (hidden.isEmpty()) {
             getString(R.string.pairs_all_shown)
         } else {
-            resources.getQuantityString(
-                R.plurals.pairs_hidden, hidden.size, hidden.size
-            )
+            resources.getQuantityString(R.plurals.pairs_hidden, hidden.size, hidden.size)
+        }
+        val optional = prefs.optionalPairs.size
+        return if (optional == 0) {
+            hiddenText
+        } else {
+            "$hiddenText · ${getString(R.string.pairs_optional_count, optional)}"
         }
     }
 

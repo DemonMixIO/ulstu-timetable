@@ -92,9 +92,29 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_HIDE_PAST, false)
         set(v) = sp.edit().putBoolean(KEY_HIDE_PAST, v).apply()
 
-    var quickFilterBar: Boolean
-        get() = sp.getBoolean(KEY_QUICK_BAR, true)
-        set(v) = sp.edit().putBoolean(KEY_QUICK_BAR, v).apply()
+    /**
+     * Номера пар, отмеченных как необязательные («ходить не обязательно»).
+     * В расписании такие пары показываются приглушённо с пунктирной рамкой.
+     */
+    var optionalPairs: Set<Int>
+        get() = sp.getString(KEY_OPTIONAL_PAIRS, "")
+            ?.split(',')
+            ?.mapNotNull { it.trim().toIntOrNull() }
+            ?.toSet()
+            ?: emptySet()
+        set(v) = sp.edit().putString(KEY_OPTIONAL_PAIRS, v.sorted().joinToString(",")).apply()
+
+    /** Не показывать необязательные пары в виджете и напоминаниях. */
+    var skipOptionalInWidget: Boolean
+        get() = sp.getBoolean(KEY_SKIP_OPTIONAL, true)
+        set(v) = sp.edit().putBoolean(KEY_SKIP_OPTIONAL, v).apply()
+
+    /**
+     * Пары, которые не должны попадать в «следующую пару», виджет и напоминания:
+     * скрытые пользователем и — если так настроено — необязательные.
+     */
+    fun pairsExcludedFromWidget(): Set<Int> =
+        if (skipOptionalInWidget) hiddenPairs + optionalPairs else hiddenPairs
 
     var showNextLessonBar: Boolean
         get() = sp.getBoolean(KEY_NEXT_BAR, true)
@@ -188,9 +208,10 @@ class Prefs(context: Context) {
         private const val KEY_FIT_WIDTH = "fit_width"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_HIDDEN_PAIRS = "hidden_pairs"
+        private const val KEY_OPTIONAL_PAIRS = "optional_pairs"
+        private const val KEY_SKIP_OPTIONAL = "skip_optional_in_widget"
         private const val KEY_HIDE_EMPTY_DAYS = "hide_empty_days"
         private const val KEY_HIDE_PAST = "hide_past"
-        private const val KEY_QUICK_BAR = "quick_filter_bar"
         private const val KEY_NEXT_BAR = "next_lesson_bar"
         private const val KEY_PAIR_COUNT = "last_pair_count"
         private const val KEY_NOTIFY = "notifications"
