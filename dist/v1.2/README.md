@@ -219,6 +219,9 @@ Cleartext-трафик запрещён, доверяются только си�
 
 ## Версии и архив
 
+Репозиторий: **<https://github.com/DemonMixIO/ulstu-timetable>**
+Релизы со всеми версиями: **<https://github.com/DemonMixIO/ulstu-timetable/releases>**
+
 Каждая выпущенная версия сохраняется целиком — и сборка, и README на тот момент:
 
 | Версия | Что внутри | Ключевое изменение |
@@ -228,15 +231,14 @@ Cleartext-трафик запрещён, доверяются только си�
 | `dist/v1.2/` | `Timetable-1.2-debug.apk`, `README.md` | поиск по парам, теги пар, фильтр только в шите |
 
 Исходники версионируются git-тегами (`v1.0`, `v1.1`, `v1.2`), сам APK в git не хранится —
-он лежит в `dist/` и при публикации прикладывается к релизу на GitHub.
+он лежит в `dist/` и приложен к соответствующему релизу на GitHub.
 
 ```bash
+git clone https://github.com/DemonMixIO/ulstu-timetable.git
+cd ulstu-timetable
 git log --oneline --decorate      # хронология версий
 git show v1.1 --stat              # что менялось в конкретной версии
 git checkout v1.1                 # состояние исходников на момент версии
-
-git remote add origin <URL-репозитория>
-git push -u origin main --tags
 ```
 
 ---
