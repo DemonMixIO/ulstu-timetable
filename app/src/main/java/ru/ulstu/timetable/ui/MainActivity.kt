@@ -171,6 +171,13 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     }
 
     private fun setupSwipeRefresh() {
+        // SwipeRefreshLayout спрашивает про возможность прокрутки вверх у своего прямого
+        // ребёнка, а это FrameLayout-обёртка (нужна, чтобы показывать экран ошибки поверх
+        // WebView). FrameLayout не скроллится, поэтому без этого колбэка свайп вниз всегда
+        // считался жестом обновления: страница не листалась вверх, а перезагружалась.
+        binding.swipe.setOnChildScrollUpCallback { _, _ ->
+            binding.webView.canScrollVertically(-1)
+        }
         binding.swipe.setOnRefreshListener { binding.webView.reload() }
     }
 
