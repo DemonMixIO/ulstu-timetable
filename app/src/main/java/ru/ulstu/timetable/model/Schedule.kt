@@ -31,6 +31,14 @@ data class Lesson(
     }
 
     fun typeCategory(): LessonType = LessonType.of(type)
+
+    /** Номер подгруппы из «2-я п/г»; 0 — подгруппа не указана, занятие общее. */
+    fun subgroupNumber(): Int =
+        SUBGROUP_RE.find(subgroup)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+    companion object {
+        private val SUBGROUP_RE = Regex("""(\d)\s*-\s*я\s*п\s*/\s*г""", RegexOption.IGNORE_CASE)
+    }
 }
 
 enum class LessonType {
@@ -98,6 +106,9 @@ data class LessonSlot(
     fun startDateTime(): LocalDateTime? = start?.let { LocalDateTime.of(date, it) }
 
     fun endDateTime(): LocalDateTime? = end?.let { LocalDateTime.of(date, it) }
+
+    /** Ключ ячейки для тегов — совпадает с ключом, который строит JS: «2026-09-14|3». */
+    fun cellKey(): String = "$date|$pairIndex"
 }
 
 object ScheduleLogic {
@@ -153,12 +164,19 @@ object ScheduleLogic {
     /**
      * Ближайшая пара: первая, которая ещё не закончилась.
      * Если пара идёт прямо сейчас, вернётся именно она — так виджет полезнее.
+     *
+     * [exclude] отсеивает пары, которые пользователю показывать не нужно:
+     * скрытые, помеченные необязательными и чужие подгруппы.
      */
-    fun nextSlot(schedule: Schedule, now: LocalDateTime, hiddenPairs: Set<Int> = emptySet()): LessonSlot? {
+    fun nextSlot(
+        schedule: Schedule,
+        now: LocalDateTime,
+        exclude: (LessonSlot) -> Boolean = { false }
+    ): LessonSlot? {
         val today = now.toLocalDate()
         val nowTime = now.toLocalTime()
         return slots(schedule)
-            .filter { it.pairIndex !in hiddenPairs }
+            .filter { !exclude(it) }
             .filter { it.date >= today }
             .firstOrNull { slot ->
                 val end = slot.end ?: slot.start

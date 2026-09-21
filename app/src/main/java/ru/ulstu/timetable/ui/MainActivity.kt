@@ -326,13 +326,21 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun showFilterSheet() {
         val sheet = FilterBottomSheet()
         sheet.pairCount = prefs.lastPairCount
+        sheet.taggedCount = prefs.optionalCells.size
         sheet.onApply = { state ->
             prefs.hiddenPairs = state.hiddenPairs
-            prefs.optionalPairs = state.optionalPairs
             prefs.hideEmptyDays = state.hideEmptyDays
             prefs.hidePast = state.hidePast
+            prefs.subgroupEnabled = state.subgroupEnabled
+            prefs.subgroup = state.subgroup
             prefs.skipOptionalInWidget = state.skipOptionalInWidget
             evaluatePairFilter()
+            updateNextLessonBar()
+            cachedSchedule?.let { WidgetRenderer.updateAll(this) }
+        }
+        sheet.onResetTags = {
+            prefs.optionalCells = emptySet()
+            applyCellTags()
             updateNextLessonBar()
             cachedSchedule?.let { WidgetRenderer.updateAll(this) }
         }
@@ -348,12 +356,34 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         if (binding.webView.url == null) return
         val script = InjectedScripts.pairFilter(
             visiblePairs(),
-            prefs.optionalPairs.sorted(),
             prefs.hideEmptyDays,
             prefs.hidePast,
+            if (prefs.subgroupEnabled) prefs.subgroup else 0,
             System.currentTimeMillis()
         )
         binding.webView.evaluateJavascript(script, null)
+    }
+
+    /** Расставляет по ячейкам сохранённые пометки «необязательная пара». */
+    private fun applyCellTags() {
+        if (binding.webView.url == null) return
+        binding.webView.evaluateJavascript(
+            InjectedScripts.cellTags(prefs.optionalCells.toList()), null
+        )
+    }
+
+    /** Тап по паре в расписании: пометить необязательной или снять пометку. */
+    override fun onOptionalToggle(cellKey: String, optional: Boolean) {
+        val cells = prefs.optionalCells.toMutableSet()
+        if (optional) cells.add(cellKey) else cells.remove(cellKey)
+        prefs.optionalCells = cells
+        Toast.makeText(
+            this,
+            if (optional) R.string.tag_marked else R.string.tag_unmarked,
+            Toast.LENGTH_SHORT
+        ).show()
+        updateNextLessonBar()
+        cachedSchedule?.let { WidgetRenderer.updateAll(this) }
     }
 
     // --- Поиск по парам -----------------------------------------------------
@@ -440,6 +470,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
             InjectedScripts.styleSheet(prefs.siteDarkTheme, prefs.fitWidth), null
         )
         evaluatePairFilter()
+        applyCellTags()
         updateNextLessonBar()
     }
 
@@ -460,6 +491,8 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
             mainFrameFailed = false
             currentUrl = url ?: currentUrl
+            // Заголовок сразу, чтобы не мелькал <title> сайта вроде «10» или «raspisan».
+            if (currentUrl.isNotBlank()) updateTitle(currentUrl)
             if (binding.progress.progress == 0) binding.progress.visibility = View.VISIBLE
             hideState()
         }
@@ -479,6 +512,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
                 InjectedScripts.styleSheet(prefs.siteDarkTheme, prefs.fitWidth), null
             )
             evaluatePairFilter()
+            applyCellTags()
             // После перезагрузки подсветка поиска ставится заново.
             if (searchQuery.isNotBlank()) applySearch()
 
@@ -529,12 +563,13 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         html: String
     ) {
         currentPageIsSchedule = isSchedule
+        currentUrl = url
 
         if (pairCount > 0) prefs.lastPairCount = pairCount
-        if (title.isNotBlank()) {
-            prefs.lastTitle = title
-            binding.toolbar.title = title
-        }
+
+        // Заголовок: на странице расписания — имя группы (появится после разбора),
+        // на остальных — понятное название экрана вместо «raspisan» или «10».
+        updateTitle(url)
 
         if (!isSchedule || html.isBlank()) {
             updateNextLessonBar()
@@ -552,10 +587,23 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
             repository.savePageHtml(url, html)
             prefs.trackedUrl = url
             prefs.trackedTitle = parsed.title
+            prefs.lastTitle = parsed.title
             cachedSchedule = parsed
+            updateTitle(url, parsed.title)
             updateNextLessonBar()
             WidgetRenderer.updateAll(this@MainActivity)
         }
+    }
+
+    /** Заголовок в панели: имя группы, «Выбор группы» или «Расписание». */
+    private fun updateTitle(url: String, scheduleTitle: String? = null) {
+        val title = when {
+            !scheduleTitle.isNullOrBlank() -> scheduleTitle
+            UrlTools.isSectionIndex(url) -> getString(R.string.title_pick_group)
+            UrlTools.isHome(url) -> getString(R.string.app_name)
+            else -> getString(R.string.title_schedule)
+        }
+        binding.toolbar.title = title
     }
 
     // --- «Следующая пара» в приложении -------------------------------------
@@ -570,7 +618,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         }
 
         val now = LocalDateTime.now()
-        val slot = ScheduleLogic.nextSlot(schedule, now, prefs.pairsExcludedFromWidget())
+        val slot = ScheduleLogic.nextSlot(schedule, now) { prefs.isSlotExcludedFromWidget(it) }
         if (slot == null) {
             bar.root.visibility = View.GONE
             return

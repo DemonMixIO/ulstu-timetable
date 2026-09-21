@@ -59,6 +59,19 @@ object UrlTools {
 
     fun isSchedulePage(url: String): Boolean = isGroupPage(url) || isTeacherPage(url)
 
+    /** Страница выбора группы/преподавателя: /student/, /prepod/, /mashfak/ и т.п. */
+    fun isSectionIndex(url: String): Boolean =
+        Regex("""/(student|mashfak|itau|kei|sf|prepod)/?$""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(url)
+
+    /** Главная страница сайта (без пути). */
+    fun isHome(url: String): Boolean =
+        url.substringAfter("://", "")
+            .substringAfter('/', "")
+            .substringBefore('?')
+            .substringBefore('#')
+            .isBlank()
+
     /** «/student/10.html» -> «10.html» — короткое имя страницы. */
     fun fileName(url: String): String = url.substringAfterLast('/').substringBefore('?')
 

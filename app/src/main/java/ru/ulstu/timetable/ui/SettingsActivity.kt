@@ -184,12 +184,19 @@ class SettingsActivity : AppCompatActivity() {
     private fun showFilterSheet() {
         val sheet = FilterBottomSheet()
         sheet.pairCount = prefs.lastPairCount
+        sheet.taggedCount = prefs.optionalCells.size
         sheet.onApply = { state ->
             prefs.hiddenPairs = state.hiddenPairs
-            prefs.optionalPairs = state.optionalPairs
             prefs.hideEmptyDays = state.hideEmptyDays
             prefs.hidePast = state.hidePast
+            prefs.subgroupEnabled = state.subgroupEnabled
+            prefs.subgroup = state.subgroup
             prefs.skipOptionalInWidget = state.skipOptionalInWidget
+            WidgetRenderer.updateAll(this)
+            rebuild()
+        }
+        sheet.onResetTags = {
+            prefs.optionalCells = emptySet()
             WidgetRenderer.updateAll(this)
             rebuild()
         }
@@ -203,11 +210,12 @@ class SettingsActivity : AppCompatActivity() {
         } else {
             resources.getQuantityString(R.plurals.pairs_hidden, hidden.size, hidden.size)
         }
-        val optional = prefs.optionalPairs.size
-        return if (optional == 0) {
+        val tags = prefs.optionalCells.size
+        return if (tags == 0) {
             hiddenText
         } else {
-            "$hiddenText · ${getString(R.string.pairs_optional_count, optional)}"
+            val tagsText = resources.getQuantityString(R.plurals.filter_tags_count, tags, tags)
+            "$hiddenText · $tagsText"
         }
     }
 

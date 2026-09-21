@@ -45,9 +45,23 @@
     <string name="filter_hide_past">Скрывать прошедшие пары</string>
     <string name="filter_hide_past_hint">Прячет пары, которые уже закончились (и прошедшие дни текущей недели).</string>
     <string name="filter_show_pairs_title">Какие пары показывать</string>
+    <string name="filter_subgroup_title">Подгруппа</string>
+    <string name="filter_subgroup_hint">У части занятий на сайте есть 1-я и 2-я подгруппа — можно оставить только свою.</string>
+    <string name="filter_only_my_subgroup">Показывать только мою подгруппу</string>
+    <string name="subgroup_number">%d-я подгруппа</string>
     <string name="filter_optional_title">Необязательные пары</string>
-    <string name="filter_optional_hint">Отмеченные пары показываются приглушённо с пунктирной рамкой — ходить на них не обязательно.</string>
+    <string name="filter_optional_hint">Нажмите на пару прямо в расписании, чтобы пометить её необязательной: она станет бледной с пунктирной рамкой. Повторный тап снимает пометку.</string>
+    <string name="filter_tags_none">пока ничего не помечено</string>
+    <string name="filter_reset_tags">Сбросить пометки</string>
+    <plurals name="filter_tags_count">
+        <item quantity="one">помечена %d пара</item>
+        <item quantity="few">помечено %d пары</item>
+        <item quantity="many">помечено %d пар</item>
+        <item quantity="other">помечено %d пары</item>
+    </plurals>
     <string name="filter_skip_optional">Не показывать необязательные в виджете и напоминаниях</string>
+    <string name="tag_marked">Пара помечена как необязательная</string>
+    <string name="tag_unmarked">Пометка снята</string>
     <string name="pair_number">%d-я пара</string>
     <string name="pair_short">%d</string>
     <string name="pairs_all_shown">Показаны все пары</string>
@@ -67,7 +81,8 @@
     <string name="search_prev">Предыдущее совпадение</string>
     <string name="search_next">Следующее совпадение</string>
 
-    <string name="pairs_optional_count">необязательных: %d</string>
+    <!-- Заголовки экранов -->
+    <string name="title_schedule">Расписание</string>
 
     <!-- Следующая пара -->
     <string name="next_lesson_title">Следующая пара</string>

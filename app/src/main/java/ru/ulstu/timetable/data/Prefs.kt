@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import ru.ulstu.timetable.Constants
+import ru.ulstu.timetable.model.LessonSlot
 
 /**
  * Все настройки и «последнее открытое окно» приложения.
@@ -93,28 +94,46 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putBoolean(KEY_HIDE_PAST, v).apply()
 
     /**
-     * Номера пар, отмеченных как необязательные («ходить не обязательно»).
-     * В расписании такие пары показываются приглушённо с пунктирной рамкой.
+     * Пары, помеченные необязательными. Тег ставится по конкретной ячейке
+     * (день + номер пары), потому что необязательная пара может быть в любом месте:
+     * ключ имеет вид «2026-09-14|3».
      */
-    var optionalPairs: Set<Int>
-        get() = sp.getString(KEY_OPTIONAL_PAIRS, "")
-            ?.split(',')
-            ?.mapNotNull { it.trim().toIntOrNull() }
-            ?.toSet()
-            ?: emptySet()
-        set(v) = sp.edit().putString(KEY_OPTIONAL_PAIRS, v.sorted().joinToString(",")).apply()
+    var optionalCells: Set<String>
+        get() = sp.getStringSet(KEY_OPTIONAL_CELLS, emptySet()) ?: emptySet()
+        set(v) = sp.edit().putStringSet(KEY_OPTIONAL_CELLS, v).apply()
+
+    fun isCellOptional(slot: LessonSlot): Boolean = slot.cellKey() in optionalCells
 
     /** Не показывать необязательные пары в виджете и напоминаниях. */
     var skipOptionalInWidget: Boolean
         get() = sp.getBoolean(KEY_SKIP_OPTIONAL, true)
         set(v) = sp.edit().putBoolean(KEY_SKIP_OPTIONAL, v).apply()
 
+    // --- Подгруппы ----------------------------------------------------------
+
+    /** Показывать пары только своей подгруппы (у части занятий есть «1-я» и «2-я п/г»). */
+    var subgroupEnabled: Boolean
+        get() = sp.getBoolean(KEY_SUBGROUP_ENABLED, false)
+        set(v) = sp.edit().putBoolean(KEY_SUBGROUP_ENABLED, v).apply()
+
+    /** Номер своей подгруппы: 1 или 2. */
+    var subgroup: Int
+        get() = sp.getInt(KEY_SUBGROUP, 1).coerceIn(1, 2)
+        set(v) = sp.edit().putInt(KEY_SUBGROUP, v.coerceIn(1, 2)).apply()
+
     /**
-     * Пары, которые не должны попадать в «следующую пару», виджет и напоминания:
-     * скрытые пользователем и — если так настроено — необязательные.
+     * Нужно ли скрыть пару от пользователя (в расписании, виджете, напоминаниях):
+     * скрытые им пары, необязательные пометки и занятия чужой подгруппы.
      */
-    fun pairsExcludedFromWidget(): Set<Int> =
-        if (skipOptionalInWidget) hiddenPairs + optionalPairs else hiddenPairs
+    fun isSlotExcludedFromWidget(slot: LessonSlot): Boolean {
+        if (slot.pairIndex in hiddenPairs) return true
+        if (skipOptionalInWidget && isCellOptional(slot)) return true
+        if (subgroupEnabled) {
+            val sg = slot.lesson.subgroupNumber()
+            if (sg > 0 && sg != subgroup) return true
+        }
+        return false
+    }
 
     var showNextLessonBar: Boolean
         get() = sp.getBoolean(KEY_NEXT_BAR, true)
@@ -208,8 +227,10 @@ class Prefs(context: Context) {
         private const val KEY_FIT_WIDTH = "fit_width"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_HIDDEN_PAIRS = "hidden_pairs"
-        private const val KEY_OPTIONAL_PAIRS = "optional_pairs"
+        private const val KEY_OPTIONAL_CELLS = "optional_cells"
         private const val KEY_SKIP_OPTIONAL = "skip_optional_in_widget"
+        private const val KEY_SUBGROUP_ENABLED = "subgroup_enabled"
+        private const val KEY_SUBGROUP = "subgroup"
         private const val KEY_HIDE_EMPTY_DAYS = "hide_empty_days"
         private const val KEY_HIDE_PAST = "hide_past"
         private const val KEY_NEXT_BAR = "next_lesson_bar"

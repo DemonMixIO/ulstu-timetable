@@ -21,6 +21,9 @@ class WebAppInterface(private val listener: Listener) {
             isSchedule: Boolean,
             html: String
         )
+
+        /** Тап по паре в расписании: пометить её необязательной или снять пометку. */
+        fun onOptionalToggle(cellKey: String, optional: Boolean)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -29,5 +32,10 @@ class WebAppInterface(private val listener: Listener) {
     fun onPage(url: String, title: String, pairCount: Int, isSchedule: Boolean, html: String) {
         // Метод вызывается в потоке JavaScript, поэтому переходим в главный.
         main.post { listener.onPageReady(url, title, pairCount, isSchedule, html) }
+    }
+
+    @JavascriptInterface
+    fun onOptionalToggle(cellKey: String, optional: Boolean) {
+        main.post { listener.onOptionalToggle(cellKey, optional) }
     }
 }

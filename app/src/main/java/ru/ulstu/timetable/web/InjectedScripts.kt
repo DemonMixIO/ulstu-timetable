@@ -6,28 +6,34 @@ package ru.ulstu.timetable.web
  * Сайт — это статический HTML, сгенерированный Word, без классов и id,
  * поэтому фильтр работает прямо по таблице: колонка N соответствует N-й паре,
  * а первая колонка — день недели.
+ *
+ * Все скрипты сначала проверяют, что на странице действительно есть таблица
+ * расписания (со строками «Пары» и «Время»). На страницах выбора группы таблицы
+ * другие — там фильтры не должны ничего трогать.
  */
 object InjectedScripts {
 
     /**
-     * Скрывает ненужные пары (по номерам), пустые дни и прошедшие занятия.
+     * Скрывает ненужные пары (по номерам), пустые дни, прошедшие занятия
+     * и пары чужой подгруппы.
+     *
      * Повторный вызов полностью пересчитывает состояние, поэтому фильтр
      * можно менять без перезагрузки страницы.
      */
     fun pairFilter(
         visiblePairs: List<Int>,
-        optionalPairs: List<Int>,
         hideEmptyDays: Boolean,
         hidePast: Boolean,
+        subgroup: Int,
         nowMillis: Long
     ): String {
         val template = """
 (function(){
   try {
     var VISIBLE = __VISIBLE__;
-    var OPTIONAL = __OPTIONAL__;
     var HIDE_EMPTY = __HIDE_EMPTY__;
     var HIDE_PAST = __HIDE_PAST__;
+    var SUBGROUP = __SUBGROUP__;
     var NOW = new Date(__NOW__);
     var NBSP = String.fromCharCode(160);
 
@@ -41,19 +47,40 @@ object InjectedScripts {
       for (var i = 0; i < VISIBLE.length; i++) if (VISIBLE[i] === p) return true;
       return false;
     }
-    function isOptional(p){
-      for (var i = 0; i < OPTIONAL.length; i++) if (OPTIONAL[i] === p) return true;
-      return false;
-    }
     function parseRange(s){
       var m = /(\d{1,2}):(\d{2})\s*[\u2013\u2014-]\s*(\d{1,2}):(\d{2})/.exec(s || '');
       if (!m) return null;
       return { start: (+m[1]) * 60 + (+m[2]), end: (+m[3]) * 60 + (+m[4]) };
     }
+    // «2-я п/г» -> 2; если подгруппа не указана — 0 (занятие общее для всех).
+    function subgroupNumber(el){
+      var m = /(\d)\s*-\s*я\s*п\s*\/\s*г/.exec(txt(el).toLowerCase());
+      return m ? (+m[1]) : 0;
+    }
+    // Фильтры имеют смысл только там, где есть таблица расписания. На странице
+    // выбора группы таких строк нет, и без этой проверки «скрывать дни без пар»
+    // прятал всю таблицу с направлениями.
+    function scheduleTables(){
+      var out = [];
+      var all = document.getElementsByTagName('TABLE');
+      for (var t = 0; t < all.length; t++) {
+        var rows = all[t].rows;
+        if (!rows || rows.length < 2) continue;
+        for (var r = 0; r < rows.length; r++) {
+          var c = rows[r].cells;
+          if (!c || !c.length) continue;
+          var f = txt(c[0]);
+          if (/^Пары/.test(f) || /^Время/.test(f)) { out.push(all[t]); break; }
+        }
+      }
+      return out;
+    }
+
+    var tables = scheduleTables();
+    if (!tables.length) return;
 
     var today = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
     var nowMin = NOW.getHours() * 60 + NOW.getMinutes();
-    var tables = document.getElementsByTagName('TABLE');
 
     for (var t = 0; t < tables.length; t++) {
       var rows = tables[t].rows;
@@ -70,6 +97,7 @@ object InjectedScripts {
         }
       }
 
+      var dayRows = 0;
       var shownDays = 0;
       for (var r = 0; r < rows.length; r++) {
         var cells = rows[r].cells;
@@ -81,6 +109,7 @@ object InjectedScripts {
         var isToday = false;
         var past = false;
         if (isDay) {
+          dayRows++;
           var d = new Date((+dm[4]), (+dm[3]) - 1, (+dm[2]));
           isToday = d.getTime() === today.getTime();
           past = d.getTime() < today.getTime();
@@ -91,12 +120,11 @@ object InjectedScripts {
           if (keep && HIDE_PAST && isToday && times[c] && times[c].end < nowMin) {
             keep = false;
           }
-          cells[c].style.display = keep ? '' : 'none';
-          // Пометка «необязательная пара» — приглушённый текст с пунктирной рамкой.
-          if (isDay) {
-            if (isOptional(c)) cells[c].classList.add('tt-opt');
-            else cells[c].classList.remove('tt-opt');
+          if (keep && isDay && SUBGROUP > 0) {
+            var sg = subgroupNumber(cells[c]);
+            if (sg > 0 && sg !== SUBGROUP) keep = false;
           }
+          cells[c].style.display = keep ? '' : 'none';
         }
 
         if (!isDay) { rows[r].style.display = ''; continue; }
@@ -116,7 +144,8 @@ object InjectedScripts {
         if (!hide) shownDays++;
       }
 
-      if (HIDE_EMPTY || HIDE_PAST) {
+      // Прячем таблицу только если в ней были дни и все они скрыты.
+      if (dayRows > 0 && (HIDE_EMPTY || HIDE_PAST)) {
         tables[t].style.display = (shownDays === 0) ? 'none' : '';
       } else {
         tables[t].style.display = '';
@@ -127,10 +156,104 @@ object InjectedScripts {
 """
         return template
             .replace("__VISIBLE__", visiblePairs.joinToString(",", "[", "]"))
-            .replace("__OPTIONAL__", optionalPairs.joinToString(",", "[", "]"))
             .replace("__HIDE_EMPTY__", hideEmptyDays.toString())
             .replace("__HIDE_PAST__", hidePast.toString())
+            .replace("__SUBGROUP__", subgroup.toString())
             .replace("__NOW__", nowMillis.toString())
+    }
+
+    /**
+     * Теги пар: необязательная пара помечается по конкретной ячейке
+     * (день + номер пары), а не по всему столбцу.
+     *
+     * Скрипт расставляет уже сохранённые пометки и навешивает обработчик:
+     * тап по ячейке переключает пометку и сообщает об этом приложению.
+     */
+    fun cellTags(keys: List<String>): String {
+        val template = """
+(function(){
+  try {
+    var KEYS = __KEYS__;
+    var MARK = 'tt-opt';
+    var NBSP = String.fromCharCode(160);
+
+    function txt(el){
+      if (!el) return '';
+      var s = el.innerText;
+      if (s === undefined || s === null) s = el.textContent || '';
+      return s.split(NBSP).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    function scheduleTables(){
+      var out = [];
+      var all = document.getElementsByTagName('TABLE');
+      for (var t = 0; t < all.length; t++) {
+        var rows = all[t].rows;
+        if (!rows || rows.length < 2) continue;
+        for (var r = 0; r < rows.length; r++) {
+          var c = rows[r].cells;
+          if (!c || !c.length) continue;
+          var f = txt(c[0]);
+          if (/^Пары/.test(f) || /^Время/.test(f)) { out.push(all[t]); break; }
+        }
+      }
+      return out;
+    }
+    // Ключ ячейки: «2026-09-14|3» — день и номер пары.
+    function keyOf(cell){
+      var tr = cell.parentNode;
+      if (!tr || !tr.cells) return '';
+      var idx = -1;
+      for (var i = 0; i < tr.cells.length; i++) if (tr.cells[i] === cell) idx = i;
+      if (idx < 1) return '';
+      var m = /^[А-Яа-яЁё]{3}\s*,\s*(\d{2})\.(\d{2})\.(\d{4})/.exec(txt(tr.cells[0]));
+      if (!m) return '';
+      return m[3] + '-' + m[2] + '-' + m[1] + '|' + idx;
+    }
+    function has(key){
+      for (var i = 0; i < KEYS.length; i++) if (KEYS[i] === key) return true;
+      return false;
+    }
+
+    var tables = scheduleTables();
+    if (!tables.length) return;
+
+    for (var t = 0; t < tables.length; t++) {
+      var rows = tables[t].rows;
+      if (!rows) continue;
+      for (var r = 0; r < rows.length; r++) {
+        var cells = rows[r].cells;
+        if (!cells || cells.length < 2) continue;
+        if (!/^[А-Яа-яЁё]{3}\s*,/.test(txt(cells[0]))) continue;
+        for (var c = 1; c < cells.length; c++) {
+          var key = keyOf(cells[c]);
+          if (key && has(key)) cells[c].classList.add(MARK);
+          else cells[c].classList.remove(MARK);
+        }
+      }
+    }
+
+    if (!window.__ttTagsBound) {
+      window.__ttTagsBound = true;
+      document.addEventListener('click', function(ev){
+        try {
+          var cell = ev.target;
+          while (cell && cell.tagName !== 'TD') cell = cell.parentNode;
+          if (!cell || cell.tagName !== 'TD') return;
+          var key = keyOf(cell);
+          if (!key) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          var on = cell.classList.contains(MARK);
+          if (on) cell.classList.remove(MARK); else cell.classList.add(MARK);
+          var B = window.AndroidTimetable;
+          if (B && B.onOptionalToggle) B.onOptionalToggle(key, !on);
+        } catch (e) { }
+      }, true);
+    }
+  } catch (e) { }
+})();
+""".replace("__KEYS__", keys.joinToString(",", "[", "]") { jsString(it) })
+        return template
     }
 
     /**
@@ -342,7 +465,7 @@ img, video { max-width: 100% !important; height: auto !important; }
 """
 
     /**
-     * Пометки поверх расписания: подсветка поиска и «необязательные» пары.
+     * Пометки поверх расписания: подсветка поиска и необязательные пары.
      * Идут до DARK_CSS в порядке возрастания приоритета: если ячейка и необязательная,
      * и найдена поиском, должна победить подсветка поиска.
      */
