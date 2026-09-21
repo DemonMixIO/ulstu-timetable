@@ -48,8 +48,11 @@ object ScheduleParser {
     private val TEACHER_RE = Regex("""^[А-ЯЁ][а-яё\-]+(\s*[А-ЯЁ]\.?){1,3}$""")
     private val GROUP_RE = Regex("""^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9\s,.\-]*-\d+[а-яА-ЯёЁ]?$""")
 
-    /** Аудитория почти всегда выглядит как «3-308», «2-СЗ», «10-акт.зал». */
-    private val ROOM_NUMBER_RE = Regex("""^\d{1,2}\s*[-–—]\s*\S""")
+    /**
+     * Аудитория почти всегда выглядит как «3-308», «2-СЗ», «10-акт.зал».
+     * Сайт иногда пишет разделитель подчёркиванием («3_4»), поэтому принимаем и его.
+     */
+    private val ROOM_NUMBER_RE = Regex("""^\d{1,2}\s*[-–—_]\s*\S""")
 
     /** Короткие обозначения аудиторий без номера. */
     private val ROOM_SHORT_WORDS = setOf(
@@ -57,7 +60,20 @@ object ScheduleParser {
         "бассейн", "стадион", "библиотека", "коворкинг", "актзал"
     )
 
-    fun parse(html: String, sourceUrl: String, updatedAt: Long = System.currentTimeMillis()): Schedule? {
+    /** Номер подгруппы в строке вида «2-я п/г». */
+    private val SUBGROUP_RE = Regex("""(\d)\s*-\s*я\s*п\s*/\s*г""", RegexOption.IGNORE_CASE)
+
+    /**
+     * @param subgroupFilter 0 — показывать все занятия; 1 или 2 — оставить только
+     *   занятия своей подгруппы (и общие). Нужен потому, что в одной ячейке сайт
+     *   может отдавать занятия сразу для обеих подгрупп.
+     */
+    fun parse(
+        html: String,
+        sourceUrl: String,
+        subgroupFilter: Int = 0,
+        updatedAt: Long = System.currentTimeMillis()
+    ): Schedule? {
         if (html.isBlank()) return null
 
         val kind = when {
@@ -73,7 +89,7 @@ object ScheduleParser {
 
         for ((header, tableHtml) in tableChunks(html)) {
             index++
-            val parsed = parseTable(Jsoup.parseBodyFragment(tableHtml)) ?: continue
+            val parsed = parseTable(Jsoup.parseBodyFragment(tableHtml), subgroupFilter) ?: continue
             if (parsed.days.isEmpty()) continue
             if (bellTimes.isEmpty()) bellTimes = parsed.times
 
@@ -157,7 +173,7 @@ object ScheduleParser {
     private fun cellsOf(row: Element): List<Element> =
         row.children().toList().filter { it.tagName() == "td" || it.tagName() == "th" }
 
-    private fun parseTable(doc: org.jsoup.nodes.Document): ParsedTable? {
+    private fun parseTable(doc: org.jsoup.nodes.Document, subgroupFilter: Int): ParsedTable? {
         val rows = doc.select("tr")
         if (rows.isEmpty()) return null
 
@@ -195,7 +211,7 @@ object ScheduleParser {
             val lessons = ArrayList<Lesson?>(pairCount)
             for (c in 1..pairCount) {
                 val cell = cells.getOrNull(c)
-                lessons += if (cell == null) null else parseCell(cellLines(cell))
+                lessons += if (cell == null) null else parseCell(cellLines(cell), subgroupFilter)
             }
             days += DaySchedule(date, m.groupValues[1], lessons)
         }
@@ -208,24 +224,75 @@ object ScheduleParser {
         return m.value.replace(Regex("""[–\-—]"""), "–")
     }
 
-    /** Текст ячейки построчно: <br> становится переводом строки. */
+    /**
+     * Текст ячейки построчно. Разрыв строки даёт только `<br>`, поэтому сначала
+     * схлопываем переводы строк из исходника: сайт пишет `<BR>` и перенос строки
+     * после него, и без этого каждая строка превращалась бы в отдельный блок
+     * (а пустая строка у нас — разделитель блоков с разными подгруппами).
+     * Пустые строки сохраняем — по ним и делятся блоки.
+     */
     private fun cellLines(cell: Element): List<String> {
         var html = cell.html()
+        html = html.replace(WS_RE, " ")
         html = html.replace(BR_RE, "\n")
         html = Parser.unescapeEntities(html, false)
         val text = html.replace(TAG_RE, " ")
         return text.split('\n', '\r')
             .map { it.replace('\u00a0', ' ').replace(WS_RE, " ").trim() }
-            .filter { it.isNotEmpty() }
     }
 
     /**
-     * Раскладывает строки ячейки по смыслу, а не по позиции: на странице группы
+     * В одной ячейке может лежать несколько занятий — например, для 1-й и 2-й
+     * подгруппы. На сайте они разделены пустой строкой.
+     */
+    private fun splitBlocks(lines: List<String>): List<List<String>> {
+        val blocks = ArrayList<List<String>>()
+        var current = ArrayList<String>()
+        for (line in lines) {
+            if (line.isBlank()) {
+                if (current.isNotEmpty()) {
+                    blocks += current
+                    current = ArrayList()
+                }
+            } else {
+                current.add(line)
+            }
+        }
+        if (current.isNotEmpty()) blocks += current
+        return blocks
+    }
+
+    /** Номер подгруппы блока: 0 — подгруппа не указана, занятие общее. */
+    private fun blockSubgroup(lines: List<String>): Int {
+        val m = lines.asSequence().mapNotNull { SUBGROUP_RE.find(it.lowercase()) }.firstOrNull()
+        return m?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+
+    /**
+     * Выбирает из ячейки нужный блок: при включённом фильтре подгрупп — блок своей
+     * подгруппы или общий; если для своей подгруппы занятия нет, возвращает null,
+     * и пара в виджет не попадёт.
+     */
+    private fun parseCell(lines: List<String>, subgroupFilter: Int): Lesson? {
+        val blocks = splitBlocks(lines)
+        if (blocks.isEmpty()) return null
+
+        val chosen = if (subgroupFilter > 0) {
+            blocks.firstOrNull { blockSubgroup(it) == 0 || blockSubgroup(it) == subgroupFilter }
+                ?: return null
+        } else {
+            blocks.first()
+        }
+        return parseBlock(chosen)
+    }
+
+    /**
+     * Раскладывает строки блока по смыслу, а не по позиции: на странице группы
      * порядок «вид, предмет, преподаватель, аудитория», а на странице преподавателя —
      * «группа, вид, предмет, аудитория». Из-за этого позиционный разбор ломается,
      * а классификация по содержимому работает для обеих схем.
      */
-    private fun parseCell(lines: List<String>): Lesson? {
+    private fun parseBlock(lines: List<String>): Lesson? {
         if (lines.isEmpty()) return null
 
         var type = ""

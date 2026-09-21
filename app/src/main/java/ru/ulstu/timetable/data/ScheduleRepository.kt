@@ -30,7 +30,11 @@ class ScheduleRepository(private val context: Context) {
 
     /** Скачивает страницу, разбирает и сохраняет в кэш. */
     suspend fun refresh(url: String): Result<Schedule> = fetchHtml(url).mapCatching { html ->
-        val schedule = ScheduleParser.parse(html, url)
+        // Фоновая синхронизация качает страницу как есть, поэтому фильтр подгрупп
+        // применяется при разборе — иначе в виджет попадут занятия чужой подгруппы.
+        val prefs = Prefs(context)
+        val subgroup = if (prefs.subgroupEnabled) prefs.subgroup else 0
+        val schedule = ScheduleParser.parse(html, url, subgroup)
             ?: throw IOException("Не удалось разобрать страницу расписания")
         saveSchedule(schedule)
         savePageHtml(url, html)

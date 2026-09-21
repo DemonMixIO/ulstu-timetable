@@ -52,10 +52,60 @@ object InjectedScripts {
       if (!m) return null;
       return { start: (+m[1]) * 60 + (+m[2]), end: (+m[3]) * 60 + (+m[4]) };
     }
-    // «2-я п/г» -> 2; если подгруппа не указана — 0 (занятие общее для всех).
-    function subgroupNumber(el){
-      var m = /(\d)\s*-\s*я\s*п\s*\/\s*г/.exec(txt(el).toLowerCase());
-      return m ? (+m[1]) : 0;
+    function stripTags(html){
+      return (html || '').replace(/<[^>]*>/g, ' ').split(NBSP).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    // В одной ячейке может лежать несколько занятий — например, для 1-й и 2-й
+    // подгруппы. На сайте они разделены пустой строкой, поэтому режем по ней.
+    function cellBlocks(cell){
+      var html = (cell.innerHTML || '').replace(/<br\s*\/?>/gi, '\n');
+      var parts = html.split('\n');
+      var blocks = [], cur = [];
+      for (var i = 0; i < parts.length; i++) {
+        var line = stripTags(parts[i]);
+        if (line === '') { if (cur.length) { blocks.push(cur); cur = []; } }
+        else cur.push(line);
+      }
+      if (cur.length) blocks.push(cur);
+      return blocks;
+    }
+    // «2-я п/г» -> 2; 0 — подгруппа не указана, занятие общее.
+    function blockSubgroup(lines){
+      for (var i = 0; i < lines.length; i++) {
+        var m = /(\d)\s*-\s*я\s*п\s*\/\s*г/.exec(lines[i].toLowerCase());
+        if (m) return +m[1];
+      }
+      return 0;
+    }
+    function joinBlocks(blocks){
+      var out = [];
+      for (var i = 0; i < blocks.length; i++) out.push(blocks[i].join('<br>'));
+      return out.join('<br><br>');
+    }
+    // Перерисовывает содержимое ячейки, оставляя только блоки нужной подгруппы.
+    // Ячейка при этом НЕ прячется: спрятанная ячейка сдвигает строку и ломает
+    // столбцы, поэтому «пусто» — это пустое содержимое, а не display:none.
+    function renderCell(cell, subgroup, blank){
+      if (cell.__ttBlocks === undefined) {
+        var font = cell.querySelector ? cell.querySelector('font') : null;
+        cell.__ttSize = font ? font.getAttribute('size') : null;
+        cell.__ttFace = font ? font.getAttribute('face') : null;
+        cell.__ttBlocks = cellBlocks(cell);
+      }
+      var blocks = cell.__ttBlocks;
+      var keep = [];
+      if (!blank) {
+        for (var i = 0; i < blocks.length; i++) {
+          var sg = blockSubgroup(blocks[i]);
+          if (subgroup <= 0 || sg === 0 || sg === subgroup) keep.push(blocks[i]);
+        }
+      }
+      var html = joinBlocks(keep);
+      if (cell.__ttSize) {
+        html = '<font size="' + cell.__ttSize + '"' +
+               (cell.__ttFace ? ' face="' + cell.__ttFace + '"' : '') + '>' + html + '</font>';
+      }
+      cell.innerHTML = html;
     }
     // Фильтры имеют смысл только там, где есть таблица расписания. На странице
     // выбора группы таких строк нет, и без этой проверки «скрывать дни без пар»
@@ -116,15 +166,15 @@ object InjectedScripts {
         }
 
         for (var c = 1; c < cells.length; c++) {
-          var keep = isVisible(c);
-          if (keep && HIDE_PAST && isToday && times[c] && times[c].end < nowMin) {
-            keep = false;
-          }
-          if (keep && isDay && SUBGROUP > 0) {
-            var sg = subgroupNumber(cells[c]);
-            if (sg > 0 && sg !== SUBGROUP) keep = false;
-          }
-          cells[c].style.display = keep ? '' : 'none';
+          var showColumn = isVisible(c);
+          var pastLesson = HIDE_PAST && isToday && times[c] && times[c].end < nowMin;
+          // Целые колонки скрываем через display:none — это одинаково во всех
+          // строках, поэтому таблица не «едет».
+          cells[c].style.display = showColumn ? '' : 'none';
+          if (!isDay || !showColumn) continue;
+          // А содержимое ячейки перерисовываем: прошедшая пара очищается,
+          // блоки чужой подгруппы убираются.
+          renderCell(cells[c], SUBGROUP, pastLesson);
         }
 
         if (!isDay) { rows[r].style.display = ''; continue; }

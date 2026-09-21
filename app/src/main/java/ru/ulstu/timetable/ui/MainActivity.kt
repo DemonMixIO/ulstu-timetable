@@ -335,6 +335,9 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
             prefs.subgroup = state.subgroup
             prefs.skipOptionalInWidget = state.skipOptionalInWidget
             evaluatePairFilter()
+            // Ячейки перерисованы — заново снимаем данные, чтобы виджет и строка
+            // «следующая пара» взяли информацию из уже отфильтрованных ячеек.
+            binding.webView.evaluateJavascript(InjectedScripts.pageProbe(), null)
             updateNextLessonBar()
             cachedSchedule?.let { WidgetRenderer.updateAll(this) }
         }
@@ -578,7 +581,10 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
 
         // Разбираем страницу и делаем её источником для виджета и напоминаний.
         lifecycleScope.launch {
-            val parsed = withContext(Dispatchers.Default) { ScheduleParser.parse(html, url) }
+            val subgroup = if (prefs.subgroupEnabled) prefs.subgroup else 0
+            val parsed = withContext(Dispatchers.Default) {
+                ScheduleParser.parse(html, url, subgroup)
+            }
             if (parsed == null) {
                 updateNextLessonBar()
                 return@launch
