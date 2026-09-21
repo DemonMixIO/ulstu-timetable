@@ -47,8 +47,9 @@ object LessonNotifier {
         if (!areNotificationsAllowed(context)) return
 
         val now = LocalDateTime.now()
-        val slot = ScheduleLogic.nextSlot(schedule, now) { prefs.isSlotExcludedFromWidget(it) }
-            ?: return
+        val slot = ScheduleLogic.nextSlot(schedule, now) {
+            prefs.isSlotExcludedFromWidget(it, schedule)
+        } ?: return
         val start = slot.startDateTime() ?: return
 
         val minutes = Duration.between(now, start).toMinutes()

@@ -93,6 +93,23 @@ data class Schedule(
     val days: List<DaySchedule> get() = weeks.flatMap { it.days }
 
     fun day(date: LocalDate): DaySchedule? = days.firstOrNull { it.date == date }
+
+    /** Номер недели, в которую попадает дата. */
+    fun weekNumberFor(date: LocalDate): Int? =
+        weeks.firstOrNull { date >= it.start && date <= it.end }?.number
+
+    /**
+     * Ключ пометки «необязательная пара»: «p{чётность}|{день недели}|{пара}».
+     *
+     * Привязка к чётности недели, а не к дате: расписание повторяется по чётным
+     * и нечётным неделям, поэтому пометка с 1-й недели должна работать и на 3-й
+     * (1→3, 2→4). Заодно пометки переживают сдвиг окна расписания.
+     */
+    fun markKey(date: LocalDate, pairIndex: Int): String? {
+        val number = weekNumberFor(date) ?: return null
+        val parity = if (number % 2 == 0) 0 else 1
+        return "p$parity|${date.dayOfWeek.value}|$pairIndex"
+    }
 }
 
 /** Конкретная пара в конкретный день — то, из чего считается «следующая пара». */

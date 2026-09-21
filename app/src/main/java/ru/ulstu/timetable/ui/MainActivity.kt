@@ -44,6 +44,7 @@ import ru.ulstu.timetable.model.ScheduleLogic
 import ru.ulstu.timetable.web.InjectedScripts
 import ru.ulstu.timetable.web.WebAppInterface
 import ru.ulstu.timetable.widget.WidgetRenderer
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
@@ -371,15 +372,40 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun applyCellTags() {
         if (binding.webView.url == null) return
         binding.webView.evaluateJavascript(
-            InjectedScripts.cellTags(prefs.optionalCells.toList()), null
+            InjectedScripts.cellTags(resolveTaggedCells()), null
         )
+    }
+
+    /**
+     * Разворачивает сохранённые пометки в конкретные ячейки текущей страницы.
+     *
+     * Сами пометки хранятся по чётности недели («p1|2|3» — нечётная неделя, вторник,
+     * 3-я пара), поэтому их нужно перевести в даты того расписания, что открыто
+     * сейчас. Благодаря этому пометка с 1-й недели работает и на 3-й.
+     */
+    private fun resolveTaggedCells(): List<String> {
+        val schedule = cachedSchedule ?: return prefs.optionalCells.toList()
+        val out = ArrayList<String>()
+        for (week in schedule.weeks) {
+            for (day in week.days) {
+                for (pair in 1..day.lessons.size) {
+                    if (prefs.isCellOptional(day.date, pair, schedule)) {
+                        out += "${day.date}|$pair"
+                    }
+                }
+            }
+        }
+        return out
     }
 
     /** Тап по паре в расписании: пометить необязательной или снять пометку. */
     override fun onOptionalToggle(cellKey: String, optional: Boolean) {
-        val cells = prefs.optionalCells.toMutableSet()
-        if (optional) cells.add(cellKey) else cells.remove(cellKey)
-        prefs.optionalCells = cells
+        val parts = cellKey.split('|')
+        val date = parts.getOrNull(0)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val pair = parts.getOrNull(1)?.toIntOrNull()
+        if (date == null || pair == null) return
+
+        prefs.setCellOptional(date, pair, optional, cachedSchedule)
         Toast.makeText(
             this,
             if (optional) R.string.tag_marked else R.string.tag_unmarked,
@@ -596,6 +622,9 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
             prefs.lastTitle = parsed.title
             cachedSchedule = parsed
             updateTitle(url, parsed.title)
+            // Теперь известно, какая неделя какой чётности, — можно разложить
+            // сохранённые пометки по конкретным ячейкам.
+            applyCellTags()
             updateNextLessonBar()
             WidgetRenderer.updateAll(this@MainActivity)
         }
@@ -624,7 +653,9 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         }
 
         val now = LocalDateTime.now()
-        val slot = ScheduleLogic.nextSlot(schedule, now) { prefs.isSlotExcludedFromWidget(it) }
+        val slot = ScheduleLogic.nextSlot(schedule, now) {
+            prefs.isSlotExcludedFromWidget(it, schedule)
+        }
         if (slot == null) {
             bar.root.visibility = View.GONE
             return

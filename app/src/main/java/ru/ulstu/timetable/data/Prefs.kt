@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import androidx.appcompat.app.AppCompatDelegate
 import ru.ulstu.timetable.Constants
 import ru.ulstu.timetable.model.LessonSlot
+import ru.ulstu.timetable.model.Schedule
+import java.time.LocalDate
 
 /**
  * Все настройки и «последнее открытое окно» приложения.
@@ -94,15 +96,44 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putBoolean(KEY_HIDE_PAST, v).apply()
 
     /**
-     * Пары, помеченные необязательными. Тег ставится по конкретной ячейке
-     * (день + номер пары), потому что необязательная пара может быть в любом месте:
-     * ключ имеет вид «2026-09-14|3».
+     * Пометки «необязательная пара». Ключи двух видов:
+     *
+     *  - `p{чётность}|{день недели}|{пара}` — основной: пометка переходит на неделю
+     *    той же чётности (1→3, 2→4) и переживает сдвиг окна расписания;
+     *  - `{гггг-ММ-дд}|{пара}` — запасной, если чётность определить не удалось.
+     *
+     * Храним сами пометки, а не привязку к показанным сейчас ячейкам: если сайт
+     * временно отдаёт одну неделю, пометки не теряются.
      */
     var optionalCells: Set<String>
         get() = sp.getStringSet(KEY_OPTIONAL_CELLS, emptySet()) ?: emptySet()
         set(v) = sp.edit().putStringSet(KEY_OPTIONAL_CELLS, v).apply()
 
-    fun isCellOptional(slot: LessonSlot): Boolean = slot.cellKey() in optionalCells
+    /** Помечена ли конкретная пара (учитываем и ключ по чётности, и запасной по дате). */
+    fun isCellOptional(date: LocalDate, pairIndex: Int, schedule: Schedule?): Boolean {
+        if ("$date|$pairIndex" in optionalCells) return true
+        val key = schedule?.markKey(date, pairIndex) ?: return false
+        return key in optionalCells
+    }
+
+    /** Ставит или снимает пометку; по возможности храним ключ по чётности недели. */
+    fun setCellOptional(
+        date: LocalDate,
+        pairIndex: Int,
+        optional: Boolean,
+        schedule: Schedule?
+    ) {
+        val current = optionalCells.toMutableSet()
+        val dateKey = "$date|$pairIndex"
+        val parityKey = schedule?.markKey(date, pairIndex)
+        if (optional) {
+            current.add(parityKey ?: dateKey)
+        } else {
+            current.remove(dateKey)
+            if (parityKey != null) current.remove(parityKey)
+        }
+        optionalCells = current
+    }
 
     /** Не показывать необязательные пары в виджете и напоминаниях. */
     var skipOptionalInWidget: Boolean
@@ -122,12 +153,13 @@ class Prefs(context: Context) {
         set(v) = sp.edit().putInt(KEY_SUBGROUP, v.coerceIn(1, 2)).apply()
 
     /**
-     * Нужно ли скрыть пару от пользователя (в расписании, виджете, напоминаниях):
+     * Нужно ли скрыть пару от пользователя (в виджете и напоминаниях):
      * скрытые им пары, необязательные пометки и занятия чужой подгруппы.
+     * Чётность недели берётся из расписания, поэтому оно передаётся сюда.
      */
-    fun isSlotExcludedFromWidget(slot: LessonSlot): Boolean {
+    fun isSlotExcludedFromWidget(slot: LessonSlot, schedule: Schedule): Boolean {
         if (slot.pairIndex in hiddenPairs) return true
-        if (skipOptionalInWidget && isCellOptional(slot)) return true
+        if (skipOptionalInWidget && isCellOptional(slot.date, slot.pairIndex, schedule)) return true
         if (subgroupEnabled) {
             val sg = slot.lesson.subgroupNumber()
             if (sg > 0 && sg != subgroup) return true

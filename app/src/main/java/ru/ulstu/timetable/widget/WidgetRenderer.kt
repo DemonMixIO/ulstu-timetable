@@ -68,7 +68,9 @@ object WidgetRenderer {
             return views
         }
 
-        val slot = ScheduleLogic.nextSlot(schedule, now) { prefs.isSlotExcludedFromWidget(it) }
+        val slot = ScheduleLogic.nextSlot(schedule, now) {
+            prefs.isSlotExcludedFromWidget(it, schedule)
+        }
         if (slot == null) {
             val hasAny = ScheduleLogic.slots(schedule).isNotEmpty()
             views.setTextViewText(R.id.widget_badge, "–")
@@ -123,7 +125,7 @@ object WidgetRenderer {
         views.setTextViewText(R.id.widget_date, ScheduleLogic.dateLabel(today))
 
         val slots = ScheduleLogic.slotsOn(schedule, today)
-            .filter { !prefs.isSlotExcludedFromWidget(it) }
+            .filter { !prefs.isSlotExcludedFromWidget(it, schedule) }
 
         if (slots.isEmpty()) {
             views.addView(R.id.widget_rows, messageRow(context, R.string.lessons_none))
