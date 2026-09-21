@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_refresh"
+        android:icon="@drawable/ic_refresh"
+        android:title="@string/menu_refresh"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_filter"
+        android:icon="@drawable/ic_filter_list"
+        android:title="@string/menu_filter"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_group"
+        android:icon="@drawable/ic_groups"
+        android:title="@string/menu_pick_group"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:icon="@drawable/ic_settings"
+        android:title="@string/menu_settings"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_track"
+        android:title="@string/menu_track"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_share"
+        android:title="@string/menu_share"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_copy"
+        android:title="@string/menu_copy"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_home"
+        android:title="@string/menu_home"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_desktop"
+        android:title="@string/menu_desktop_mode"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_browser"
+        android:title="@string/settings_open_source"
+        app:showAsAction="never" />
+</menu>

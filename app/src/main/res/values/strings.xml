@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Расписание УлГТУ</string>
+
+    <!-- Экраны -->
+    <string name="title_pick_group">Выбор группы</string>
+    <string name="title_settings">Настройки</string>
+    <string name="title_filter">Фильтр по парам</string>
+    <string name="title_home">Главная</string>
+
+    <!-- Меню -->
+    <string name="menu_refresh">Обновить</string>
+    <string name="menu_pick_group">Выбрать группу</string>
+    <string name="menu_filter">Фильтр по парам</string>
+    <string name="menu_settings">Настройки</string>
+    <string name="menu_share">Поделиться ссылкой</string>
+    <string name="menu_home">На главную</string>
+    <string name="menu_copy">Скопировать ссылку</string>
+    <string name="menu_desktop_mode">Версия для ПК</string>
+    <string name="menu_track">Сделать моей группой</string>
+
+    <!-- Общее -->
+    <string name="ok">ОК</string>
+    <string name="cancel">Отмена</string>
+    <string name="apply">Применить</string>
+    <string name="reset">Сбросить</string>
+    <string name="close">Закрыть</string>
+    <string name="retry">Повторить</string>
+    <string name="search_hint">Поиск группы или преподавателя</string>
+    <string name="loading">Загрузка…</string>
+
+    <!-- Ошибки -->
+    <string name="error_offline">Нет подключения к интернету</string>
+    <string name="error_load">Не удалось загрузить расписание</string>
+    <string name="error_no_cache">Сохранённой копии пока нет — подключитесь к интернету и откройте расписание один раз</string>
+    <string name="error_picker">Не удалось получить список групп</string>
+    <string name="error_not_schedule">Это не похоже на страницу расписания</string>
+
+    <!-- Фильтр по парам -->
+    <string name="filter_pairs_title">Пары</string>
+    <string name="filter_pairs_hint">Снимите галочки с пар, которые не нужны — они будут скрыты в расписании.</string>
+    <string name="filter_all">Все</string>
+    <string name="filter_none">Ничего</string>
+    <string name="filter_hide_empty_days">Скрывать дни без пар</string>
+    <string name="filter_hide_past">Скрывать прошедшие пары</string>
+    <string name="filter_hide_past_hint">Прячет пары, которые уже закончились (и прошедшие дни текущей недели).</string>
+    <string name="filter_show_quick_bar">Показывать быстрый фильтр под панелью</string>
+    <string name="pair_number">%d-я пара</string>
+    <string name="pair_short">%d</string>
+    <string name="pairs_all_shown">Показаны все пары</string>
+    <plurals name="pairs_hidden">
+        <item quantity="one">Скрыта %d пара</item>
+        <item quantity="few">Скрыто %d пары</item>
+        <item quantity="many">Скрыто %d пар</item>
+        <item quantity="other">Скрыто %d пары</item>
+    </plurals>
+
+    <!-- Следующая пара -->
+    <string name="next_lesson_title">Следующая пара</string>
+    <string name="next_lesson_none">На сегодня пар больше нет</string>
+    <string name="next_lesson_none_week">На этой неделе пар больше нет</string>
+    <string name="next_lesson_tomorrow">Завтра</string>
+    <string name="next_lesson_in">через %s</string>
+    <string name="next_lesson_now">идёт сейчас</string>
+    <string name="next_lesson_today">сегодня</string>
+    <string name="lessons_none">Пар нет</string>
+    <string name="widget_no_group">Откройте приложение и выберите группу</string>
+    <string name="widget_no_data">Нет данных. Нажмите, чтобы обновить.</string>
+    <string name="widget_updated">обновлено %s</string>
+    <string name="widget_stale">данные от %s</string>
+
+    <!-- Виджеты -->
+    <string name="widget_next_lesson_name">Следующая пара</string>
+    <string name="widget_next_lesson_desc">Показывает ближайшую пару: предмет, аудиторию и время.</string>
+    <string name="widget_today_name">Пары на сегодня</string>
+    <string name="widget_today_desc">Список пар на сегодня с временем и аудиториями.</string>
+    <string name="widget_today_title">Сегодня</string>
+    <string name="widget_refresh">Обновить виджет</string>
+
+    <!-- Настройки -->
+    <string name="settings_section_browse">Просмотр</string>
+    <string name="settings_section_filter">Фильтр расписания</string>
+    <string name="settings_section_widget">Виджет и уведомления</string>
+    <string name="settings_section_data">Данные</string>
+    <string name="settings_auto_refresh">Автообновление при открытии</string>
+    <string name="settings_auto_refresh_desc">Перезагружать расписание свежими данными при каждом запуске.</string>
+    <string name="settings_periodic_refresh">Периодическое обновление</string>
+    <string name="settings_periodic_refresh_desc">Обновлять страницу каждые 15 минут, пока приложение открыто.</string>
+    <string name="settings_site_dark">Тёмная тема для сайта</string>
+    <string name="settings_site_dark_desc">Перекрашивает страницы расписания в тёмные тона.</string>
+    <string name="settings_theme">Оформление приложения</string>
+    <string name="settings_fit_width">Вписывать таблицу по ширине</string>
+    <string name="settings_fit_width_desc">Убирает горизонтальную прокрутку широкой таблицы расписания.</string>
+    <string name="settings_text_zoom">Размер текста на сайте</string>
+    <string name="settings_hide_empty_days">Скрывать дни без пар</string>
+    <string name="settings_hide_past">Скрывать прошедшие пары</string>
+    <string name="settings_quick_bar">Быстрый фильтр под панелью</string>
+    <string name="settings_quick_bar_desc">Полоска с номерами пар для быстрого включения и выключения.</string>
+    <string name="settings_show_next_bar">Показывать «следующую пару» в приложении</string>
+    <string name="settings_notifications">Уведомления о паре</string>
+    <string name="settings_notifications_desc">Напомнить перед началом пары.</string>
+    <string name="settings_notify_lead">Напомнить заранее</string>
+    <string name="settings_clear_cache">Очистить кэш расписания</string>
+    <string name="settings_clear_cache_desc">Удаляет сохранённые страницы, разобранное расписание и данные виджетов.</string>
+    <string name="settings_reset">Сбросить все настройки</string>
+    <string name="settings_reset_desc">Возвращает приложение в исходное состояние.</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_version">Версия %s</string>
+    <string name="settings_source">Источник данных: %s</string>
+    <string name="settings_open_source">Открыть сайт расписания</string>
+    <string name="settings_group">Моя группа</string>
+    <string name="settings_group_none">не выбрана</string>
+
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлое</string>
+    <string name="theme_dark">Тёмное</string>
+
+    <string-array name="theme_entries">
+        <item>@string/theme_system</item>
+        <item>@string/theme_light</item>
+        <item>@string/theme_dark</item>
+    </string-array>
+    <string-array name="lead_entries">
+        <item>за 5 минут</item>
+        <item>за 10 минут</item>
+        <item>за 15 минут</item>
+        <item>за 30 минут</item>
+    </string-array>
+
+    <!-- Диалоги/тосты -->
+    <string name="cache_cleared">Кэш очищен</string>
+    <string name="settings_reset_done">Настройки сброшены</string>
+    <string name="link_copied">Ссылка скопирована</string>
+    <string name="tracked_group_set">Моя группа: %s</string>
+    <string name="no_schedule_on_page">На этой странице нет расписания</string>
+    <string name="notification_channel_name">Напоминания о парах</string>
+    <string name="notification_channel_desc">Уведомления перед началом пары</string>
+    <string name="notification_title">Скоро пара</string>
+    <string name="notification_group_unknown">Расписание</string>
+    <string name="offline_title">Показана сохранённая копия</string>
+    <string name="offline_action">Обновить</string>
+    <string name="download_error_http">Сервер вернул код %d</string>
+</resources>

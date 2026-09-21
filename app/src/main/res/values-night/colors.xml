@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Виджеты: тёмная схема -->
+    <color name="widget_bg">#1B1D24</color>
+    <color name="widget_stroke">#2E3242</color>
+    <color name="widget_accent">#9DB2FF</color>
+    <color name="widget_text">#ECEDF1</color>
+    <color name="widget_text_muted">#A9AEBB</color>
+    <color name="icon_default">#D5D8E0</color>
+    <color name="lesson_slot_bg">#23262F</color>
+</resources>

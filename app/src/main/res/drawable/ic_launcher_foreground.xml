@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Календарь -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,30h40a6,6 0 0 1 6,6v42a6,6 0 0 1 -6,6H34a6,6 0 0 1 -6,-6V36a6,6 0 0 1 6,-6z" />
+    <path
+        android:fillColor="#1E3FBF"
+        android:pathData="M34,30h40a6,6 0 0 1 6,6v6H28v-6a6,6 0 0 1 6,-6z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,23h5v11h-5z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63,23h5v11h-5z" />
+    <!-- Циферблат -->
+    <path
+        android:fillColor="#2E5BFF"
+        android:pathData="M54,52m-14,0a14,14 0 1,0 28,0a14,14 0 1,0 -28,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52.5,44h3v9h-3z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54.5h8v3h-8z" />
+</vector>
