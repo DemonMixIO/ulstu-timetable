@@ -23,7 +23,7 @@ object WidgetAlarms {
     fun schedule(context: Context) {
         val schedule = ScheduleRepository(context).cachedSchedule() ?: return
         val now = LocalDateTime.now()
-        val boundary = nextBoundary(schedule, now) ?: return
+        val boundary = nextUpdate(schedule, now) ?: return
 
         val atMillis = boundary.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         if (atMillis <= System.currentTimeMillis() + 1_000L) return
@@ -37,9 +37,22 @@ object WidgetAlarms {
         runCatching { manager.cancel(pendingRefresh(context)) }
     }
 
-    private fun nextBoundary(schedule: Schedule, now: LocalDateTime): LocalDateTime? {
+    /**
+     * Когда будить виджет в следующий раз.
+     *
+     * Пока пара идёт, в виджете тикают счётчики («идёт 25 мин · ещё 40 мин»),
+     * поэтому обновляем его раз в минуту. В остальное время достаточно границ
+     * пар — начала и конца занятий.
+     */
+    private fun nextUpdate(schedule: Schedule, now: LocalDateTime): LocalDateTime? {
+        val slots = ScheduleLogic.slots(schedule)
+
+        if (slots.any { ScheduleLogic.isNow(it, now) }) {
+            return now.plusMinutes(1)
+        }
+
         val candidates = ArrayList<LocalDateTime>()
-        for (slot in ScheduleLogic.slots(schedule)) {
+        for (slot in slots) {
             slot.startDateTime()?.let { if (it.isAfter(now)) candidates += it }
             slot.endDateTime()?.let { if (it.isAfter(now)) candidates += it }
         }

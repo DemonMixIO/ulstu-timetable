@@ -166,6 +166,9 @@ object InjectedScripts {
           var d = new Date((+dm[4]), (+dm[3]) - 1, (+dm[2]));
           isToday = d.getTime() === today.getTime();
           past = d.getTime() < today.getTime();
+          // Подсвечиваем строку текущего дня недели.
+          if (isToday) rows[r].classList.add('tt-today');
+          else rows[r].classList.remove('tt-today');
         }
 
         for (var c = 1; c < cells.length; c++) {
@@ -528,8 +531,15 @@ img, video { max-width: 100% !important; height: auto !important; }
   outline: 2px dashed rgba(46, 91, 255, 0.7) !important;
   outline-offset: -2px !important;
 }
+/* Текущий день недели. */
+.tt-today > td { background: rgba(46, 91, 255, 0.10) !important; }
+.tt-today > td:first-child { box-shadow: inset 3px 0 0 0 #2E5BFF !important; }
+.tt-today > td:first-child,
+.tt-today > td:first-child * { color: #2E5BFF !important; font-weight: bold !important; }
 .tt-search-dim { opacity: 0.22 !important; }
-.tt-search-hit {
+/* Подсветка поиска идёт последней и с повышенной специфичностью:
+   она важнее фона текущего дня. */
+td.tt-search-hit {
   opacity: 1 !important;
   background: rgba(255, 205, 60, 0.38) !important;
   box-shadow: inset 0 0 0 2px #F2A93B !important;
@@ -551,6 +561,11 @@ input, select, textarea {
   color: #e7e9f0 !important;
   border: 1px solid rgba(255,255,255,0.2) !important;
 }
+/* Текущий день — акцентным цветом, читаемым на тёмном фоне. */
+.tt-today > td { background: rgba(157, 178, 255, 0.14) !important; }
+.tt-today > td:first-child { box-shadow: inset 3px 0 0 0 #9DB2FF !important; }
+.tt-today > td:first-child,
+.tt-today > td:first-child * { color: #9DB2FF !important; }
 """
 
     /** Экранирует произвольный текст в корректный строковый литерал JavaScript. */

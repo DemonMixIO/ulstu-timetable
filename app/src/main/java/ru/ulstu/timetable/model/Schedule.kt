@@ -213,9 +213,21 @@ object ScheduleLogic {
         return !now.toLocalTime().isBefore(start) && now.toLocalTime().isBefore(end)
     }
 
-    /** «через 1 ч 20 мин» / «идёт сейчас». */
+    /**
+     * «через 1 ч 20 мин» — до начала пары.
+     * Для идущей пары: «идёт 25 мин · ещё 40 мин» (сколько уже идёт и сколько осталось).
+     */
     fun humanUntil(slot: LessonSlot, now: LocalDateTime): String {
-        if (isNow(slot, now)) return "идёт сейчас"
+        if (isNow(slot, now)) {
+            val start = slot.startDateTime()
+            val end = slot.endDateTime()
+            if (start != null && end != null) {
+                val elapsed = java.time.Duration.between(start, now).toMinutes().coerceAtLeast(0)
+                val left = java.time.Duration.between(now, end).toMinutes().coerceAtLeast(0)
+                return "идёт $elapsed мин · ещё $left мин"
+            }
+            return "идёт сейчас"
+        }
         val start = slot.startDateTime() ?: return ""
         val minutes = java.time.Duration.between(now, start).toMinutes()
         if (minutes <= 0) return "идёт сейчас"
