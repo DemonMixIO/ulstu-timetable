@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import ru.ulstu.timetable.Constants
 import ru.ulstu.timetable.model.LessonSlot
 import ru.ulstu.timetable.model.Schedule
+import ru.ulstu.timetable.model.ScheduleLogic
 import java.time.LocalDate
 
 /**
@@ -171,6 +172,28 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_NEXT_BAR, true)
         set(v) = sp.edit().putBoolean(KEY_NEXT_BAR, v).apply()
 
+    // --- Виджет «Пары на сегодня» -------------------------------------------
+
+    /**
+     * Когда виджет переключается на следующий учебный день:
+     * [ScheduleLogic.TODAY_MODE_AFTER_LAST], [ScheduleLogic.TODAY_MODE_AT_TIME]
+     * или [ScheduleLogic.TODAY_MODE_TODAY_ONLY].
+     */
+    var todayWidgetMode: Int
+        get() = sp.getInt(KEY_TODAY_MODE, ScheduleLogic.TODAY_MODE_AFTER_LAST)
+        set(v) = sp.edit().putInt(KEY_TODAY_MODE, v).apply()
+
+    /** Время переключения для режима «в заданное время». */
+    var todayWidgetSwitchTime: java.time.LocalTime
+        get() = java.time.LocalTime.of(
+            sp.getInt(KEY_TODAY_HOUR, 18).coerceIn(0, 23),
+            sp.getInt(KEY_TODAY_MINUTE, 0).coerceIn(0, 59)
+        )
+        set(v) = sp.edit()
+            .putInt(KEY_TODAY_HOUR, v.hour)
+            .putInt(KEY_TODAY_MINUTE, v.minute)
+            .apply()
+
     /** Сколько пар в таблице на последней открытой странице (для полоски фильтра). */
     var lastPairCount: Int
         get() = sp.getInt(KEY_PAIR_COUNT, 8).coerceIn(1, 12)
@@ -266,6 +289,9 @@ class Prefs(context: Context) {
         private const val KEY_HIDE_EMPTY_DAYS = "hide_empty_days"
         private const val KEY_HIDE_PAST = "hide_past"
         private const val KEY_NEXT_BAR = "next_lesson_bar"
+        private const val KEY_TODAY_MODE = "today_widget_mode"
+        private const val KEY_TODAY_HOUR = "today_widget_hour"
+        private const val KEY_TODAY_MINUTE = "today_widget_minute"
         private const val KEY_PAIR_COUNT = "last_pair_count"
         private const val KEY_NOTIFY = "notifications"
         private const val KEY_NOTIFY_LEAD = "notify_lead"

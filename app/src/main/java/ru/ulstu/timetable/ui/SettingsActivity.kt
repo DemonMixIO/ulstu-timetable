@@ -16,6 +16,7 @@ import ru.ulstu.timetable.data.Prefs
 import ru.ulstu.timetable.data.ScheduleRepository
 import ru.ulstu.timetable.data.UrlTools
 import ru.ulstu.timetable.databinding.ActivitySettingsBinding
+import ru.ulstu.timetable.model.ScheduleLogic
 import ru.ulstu.timetable.widget.WidgetRenderer
 import ru.ulstu.timetable.work.LessonNotifier
 
@@ -118,6 +119,32 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_show_next_bar, null,
             prefs.showNextLessonBar
         ) { prefs.showNextLessonBar = it }
+
+        // Виджет «Пары на сегодня»: когда переключаться на следующий учебный день.
+        SettingsRows.choiceRow(
+            this, content,
+            R.string.settings_today_widget_mode,
+            resources.getStringArray(R.array.today_widget_modes),
+            prefs.todayWidgetMode
+        ) { which ->
+            prefs.todayWidgetMode = which
+            rebuild()
+            WidgetRenderer.updateAll(this)
+        }
+
+        if (prefs.todayWidgetMode == ScheduleLogic.TODAY_MODE_AT_TIME) {
+            val switchTime = prefs.todayWidgetSwitchTime
+            SettingsRows.timeRow(
+                this, content,
+                R.string.settings_today_widget_time,
+                switchTime.hour,
+                switchTime.minute
+            ) { hour, minute ->
+                prefs.todayWidgetSwitchTime = java.time.LocalTime.of(hour, minute)
+                rebuild()
+                WidgetRenderer.updateAll(this)
+            }
+        }
 
         SettingsRows.switchRow(
             this, content,

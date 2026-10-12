@@ -106,6 +106,37 @@ object SettingsRows {
         parent.addView(row)
     }
 
+    /** Строка выбора времени: открывает системный выбор часов и минут. */
+    fun timeRow(
+        context: Context,
+        parent: LinearLayout,
+        titleRes: Int,
+        hour: Int,
+        minute: Int,
+        onPicked: (Int, Int) -> Unit
+    ) {
+        val row = row(context, clickable = true)
+        row.addView(textBlock(context, titleRes, null, "%02d:%02d".format(hour, minute)), weight())
+        row.addView(
+            ImageView(context).apply {
+                setImageResource(R.drawable.ic_chevron_right)
+                layoutParams = LinearLayout.LayoutParams(dp(context, 20), dp(context, 20))
+            }
+        )
+        row.setOnClickListener {
+            val activity = context as? androidx.fragment.app.FragmentActivity ?: return@setOnClickListener
+            val picker = com.google.android.material.timepicker.MaterialTimePicker.Builder()
+                .setTimeFormat(com.google.android.material.timepicker.TimeFormat.CLOCK_24H)
+                .setHour(hour)
+                .setMinute(minute)
+                .setTitleText(titleRes)
+                .build()
+            picker.addOnPositiveButtonClickListener { onPicked(picker.hour, picker.minute) }
+            picker.show(activity.supportFragmentManager, "time")
+        }
+        parent.addView(row)
+    }
+
     fun sliderRow(
         context: Context,
         parent: LinearLayout,

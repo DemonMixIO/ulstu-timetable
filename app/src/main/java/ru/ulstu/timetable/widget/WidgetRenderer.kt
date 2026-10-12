@@ -122,9 +122,18 @@ object WidgetRenderer {
         }
 
         val today = now.toLocalDate()
-        views.setTextViewText(R.id.widget_date, ScheduleLogic.dateLabel(today))
+        // После занятий (или к заданному времени) показываем следующий учебный день,
+        // чтобы вечером виджет не был пустым.
+        val day = ScheduleLogic.dailyWidgetDay(
+            schedule = schedule,
+            now = now,
+            mode = prefs.todayWidgetMode,
+            switchTime = prefs.todayWidgetSwitchTime,
+            exclude = { prefs.isSlotExcludedFromWidget(it, schedule) }
+        )
+        views.setTextViewText(R.id.widget_date, dayTitle(day, today))
 
-        val slots = ScheduleLogic.slotsOn(schedule, today)
+        val slots = ScheduleLogic.slotsOn(schedule, day)
             .filter { !prefs.isSlotExcludedFromWidget(it, schedule) }
 
         if (slots.isEmpty()) {
@@ -144,6 +153,16 @@ object WidgetRenderer {
     }
 
     // --- Вспомогательное ----------------------------------------------------
+
+    /** «Сегодня, Вт 22.09» / «Завтра, Ср 23.09» / «Пн, 28.09». */
+    private fun dayTitle(day: java.time.LocalDate, today: java.time.LocalDate): String {
+        val days = java.time.temporal.ChronoUnit.DAYS.between(today, day)
+        return when (days) {
+            0L -> "Сегодня, ${ScheduleLogic.dateLabelShort(day)}"
+            1L -> "Завтра, ${ScheduleLogic.dateLabelShort(day)}"
+            else -> ScheduleLogic.dateLabelShort(day)
+        }
+    }
 
     private const val MAX_ROWS = 6
 

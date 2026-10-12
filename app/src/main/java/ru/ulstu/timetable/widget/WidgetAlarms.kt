@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import ru.ulstu.timetable.Constants
+import ru.ulstu.timetable.data.Prefs
 import ru.ulstu.timetable.data.ScheduleRepository
 import ru.ulstu.timetable.model.Schedule
 import ru.ulstu.timetable.model.ScheduleLogic
@@ -23,7 +24,7 @@ object WidgetAlarms {
     fun schedule(context: Context) {
         val schedule = ScheduleRepository(context).cachedSchedule() ?: return
         val now = LocalDateTime.now()
-        val boundary = nextUpdate(schedule, now) ?: return
+        val boundary = nextUpdate(context, schedule, now) ?: return
 
         val atMillis = boundary.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         if (atMillis <= System.currentTimeMillis() + 1_000L) return
@@ -44,7 +45,14 @@ object WidgetAlarms {
      * поэтому обновляем его раз в минуту. В остальное время достаточно границ
      * пар — начала и конца занятий.
      */
-    private fun nextUpdate(schedule: Schedule, now: LocalDateTime): LocalDateTime? {
+    /**
+     * Когда будить виджет в следующий раз.
+     *
+     * Пока пара идёт, в виджете тикают счётчики («идёт 25 мин · ещё 40 мин»),
+     * поэтому обновляем его раз в минуту. Дальше — границы пар (начало и конец
+     * занятий) и момент переключения виджета «Пары на сегодня» на следующий день.
+     */
+    private fun nextUpdate(context: Context, schedule: Schedule, now: LocalDateTime): LocalDateTime? {
         val slots = ScheduleLogic.slots(schedule)
 
         if (slots.any { ScheduleLogic.isNow(it, now) }) {
@@ -56,6 +64,15 @@ object WidgetAlarms {
             slot.startDateTime()?.let { if (it.isAfter(now)) candidates += it }
             slot.endDateTime()?.let { if (it.isAfter(now)) candidates += it }
         }
+
+        // Виджет «Пары на сегодня» в режиме «в заданное время» должен сменить день
+        // ровно в этот момент, не дожидаясь ближайшей пары.
+        val prefs = Prefs(context)
+        if (prefs.todayWidgetMode == ScheduleLogic.TODAY_MODE_AT_TIME) {
+            val switchAt = LocalDateTime.of(now.toLocalDate(), prefs.todayWidgetSwitchTime)
+            if (switchAt.isAfter(now)) candidates += switchAt
+        }
+
         return candidates.minOrNull()
     }
 

@@ -242,12 +242,70 @@ object ScheduleLogic {
     }
 
     /** «Сегодня», «Завтра» или «Пт, 25.09». */
-    fun dayLabel(slot: LessonSlot, now: LocalDateTime): String {
-        val days = java.time.temporal.ChronoUnit.DAYS.between(now.toLocalDate(), slot.date)
+    fun dayLabel(slot: LessonSlot, now: LocalDateTime): String =
+        dayLabelFor(slot.date, now.toLocalDate())
+
+    /** То же для произвольной даты. */
+    fun dayLabelFor(date: LocalDate, today: LocalDate): String {
+        val days = java.time.temporal.ChronoUnit.DAYS.between(today, date)
         return when (days) {
             0L -> "Сегодня"
             1L -> "Завтра"
-            else -> dateLabelShort(slot.date)
+            else -> dateLabelShort(date)
         }
+    }
+
+    // --- Виджет «Пары на сегодня» -------------------------------------------
+
+    /** Показывать всегда сегодняшний день. */
+    const val TODAY_MODE_TODAY_ONLY = 2
+
+    /** Переключаться на следующий день после последней пары. */
+    const val TODAY_MODE_AFTER_LAST = 0
+
+    /** Переключаться на следующий день в заданное время. */
+    const val TODAY_MODE_AT_TIME = 1
+
+    /** Ближайший день после [after], в котором есть занятия. */
+    fun nextDayWithLessons(
+        schedule: Schedule,
+        after: LocalDate,
+        exclude: (LessonSlot) -> Boolean = { false }
+    ): LocalDate? = schedule.days
+        .filter { it.date > after }
+        .sortedBy { it.date }
+        .firstOrNull { day -> slotsOn(schedule, day.date).any { !exclude(it) } }
+        ?.date
+
+    /**
+     * Какой день показывать в виджете «Пары на сегодня».
+     *
+     * Логика: если на сегодня пар нет — сразу показываем следующий день с занятиями;
+     * иначе остаёмся на сегодня и переключаемся, когда пары закончились
+     * ([TODAY_MODE_AFTER_LAST]) или когда наступило заданное время ([TODAY_MODE_AT_TIME]).
+     * Режим [TODAY_MODE_TODAY_ONLY] оставляет сегодняшний день всегда.
+     */
+    fun dailyWidgetDay(
+        schedule: Schedule,
+        now: LocalDateTime,
+        mode: Int,
+        switchTime: LocalTime,
+        exclude: (LessonSlot) -> Boolean = { false }
+    ): LocalDate {
+        val today = now.toLocalDate()
+        if (mode == TODAY_MODE_TODAY_ONLY) return today
+
+        val next = nextDayWithLessons(schedule, today, exclude) ?: return today
+        val todaySlots = slotsOn(schedule, today).filter { !exclude(it) }
+        if (todaySlots.isEmpty()) return next
+
+        val switched = when (mode) {
+            TODAY_MODE_AT_TIME -> !now.toLocalTime().isBefore(switchTime)
+            else -> {
+                val lastEnd = todaySlots.mapNotNull { it.endDateTime() }.maxOrNull()
+                lastEnd != null && now.isAfter(lastEnd)
+            }
+        }
+        return if (switched) next else today
     }
 }

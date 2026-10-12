@@ -101,8 +101,8 @@
     <!-- Виджеты -->
     <string name="widget_next_lesson_name">Следующая пара</string>
     <string name="widget_next_lesson_desc">Показывает ближайшую пару: предмет, аудиторию и время.</string>
-    <string name="widget_today_name">Пары на сегодня</string>
-    <string name="widget_today_desc">Список пар на сегодня с временем и аудиториями.</string>
+    <string name="widget_today_name">Пары на сегодня и завтра</string>
+    <string name="widget_today_desc">Список пар на сегодня, а после занятий — на следующий учебный день.</string>
     <string name="widget_today_title">Сегодня</string>
     <string name="widget_refresh">Обновить виджет</string>
 
@@ -126,6 +126,14 @@
     <string name="settings_quick_bar">Быстрый фильтр под панелью</string>
     <string name="settings_quick_bar_desc">Полоска с номерами пар для быстрого включения и выключения.</string>
     <string name="settings_show_next_bar">Показывать «следующую пару» в приложении</string>
+    <string name="settings_today_widget_mode">Виджет «Пары на день»: когда показывать следующий день</string>
+    <string name="settings_today_widget_time">Время переключения</string>
+
+    <string-array name="today_widget_modes">
+        <item>После последней пары</item>
+        <item>В заданное время</item>
+        <item>Всегда текущий день</item>
+    </string-array>
     <string name="settings_notifications">Уведомления о паре</string>
     <string name="settings_notifications_desc">Напомнить перед началом пары.</string>
     <string name="settings_notify_lead">Напомнить заранее</string>
