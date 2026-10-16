@@ -225,12 +225,14 @@ object InjectedScripts {
      * Скрипт расставляет уже сохранённые пометки и навешивает обработчик:
      * тап по ячейке переключает пометку и сообщает об этом приложению.
      */
-    fun cellTags(keys: List<String>): String {
+    fun cellTags(keys: List<String>, homework: Map<String, String> = emptyMap()): String {
         val template = """
 (function(){
   try {
     var KEYS = __KEYS__;
+    var HOMEWORK = __HOMEWORK__;
     var MARK = 'tt-opt';
+    var HW = 'tt-homework';
     var NBSP = String.fromCharCode(160);
 
     function txt(el){
@@ -269,6 +271,9 @@ object InjectedScripts {
       for (var i = 0; i < KEYS.length; i++) if (KEYS[i] === key) return true;
       return false;
     }
+    function homeworkOf(key){
+      return Object.prototype.hasOwnProperty.call(HOMEWORK, key) ? HOMEWORK[key] : '';
+    }
 
     var tables = scheduleTables();
     if (!tables.length) return;
@@ -284,6 +289,15 @@ object InjectedScripts {
           var key = keyOf(cells[c]);
           if (key && has(key)) cells[c].classList.add(MARK);
           else cells[c].classList.remove(MARK);
+          var old = cells[c].querySelector('.' + HW);
+          if (old) old.parentNode.removeChild(old);
+          var homework = key ? homeworkOf(key) : '';
+          if (homework) {
+            var badge = document.createElement('div');
+            badge.className = HW;
+            badge.textContent = 'ДЗ: ' + homework;
+            cells[c].appendChild(badge);
+          }
         }
       }
     }
@@ -299,17 +313,20 @@ object InjectedScripts {
           if (!key) return;
           ev.preventDefault();
           ev.stopPropagation();
-          var on = cell.classList.contains(MARK);
-          if (on) cell.classList.remove(MARK); else cell.classList.add(MARK);
           var B = window.AndroidTimetable;
-          if (B && B.onOptionalToggle) B.onOptionalToggle(key, !on);
+          if (B && B.onLessonClick) B.onLessonClick(key);
         } catch (e) { }
       }, true);
     }
   } catch (e) { }
 })();
-""".replace("__KEYS__", keys.joinToString(",", "[", "]") { jsString(it) })
+"""
+        val homeworkObject = homework.entries.joinToString(",", "{", "}") {
+            "${jsString(it.key)}:${jsString(it.value)}"
+        }
         return template
+            .replace("__KEYS__", keys.joinToString(",", "[", "]") { jsString(it) })
+            .replace("__HOMEWORK__", homeworkObject)
     }
 
     /**
@@ -409,7 +426,35 @@ object InjectedScripts {
       return s.split(NBSP).join(' ').replace(/\s+/g, ' ').trim();
     }
 
-    var allCells = document.querySelectorAll('td');
+    function normalized(s){
+      return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, '');
+    }
+
+    function abbreviations(s){
+      var result = [];
+      var lines = String(s || '').split(/[\r\n]+/);
+      for (var l = 0; l < lines.length; l++) {
+        var words = lines[l].toLowerCase().replace(/ё/g, 'е').match(/[a-zа-я0-9]+/g) || [];
+        if (!words.length) continue;
+        result.push(words.map(function(w){ return w.charAt(0); }).join(''));
+        var filtered = words.filter(function(w){
+          return ['лек','лекция','пр','практика','лаб','лабораторная','сем','занятие'].indexOf(w) < 0;
+        });
+        if (filtered.length) result.push(filtered.map(function(w){ return w.charAt(0); }).join(''));
+      }
+      return result;
+    }
+
+    function matches(text){
+      var q = normalized(NEEDLE);
+      if (!q) return false;
+      if (normalized(text).indexOf(q) >= 0) return true;
+      var a = abbreviations(text);
+      for (var i = 0; i < a.length; i++) if (a[i].indexOf(q) >= 0) return true;
+      return false;
+    }
+
+    var allCells = document.querySelectorAll('td, th');
     for (var i = 0; i < allCells.length; i++) {
       allCells[i].classList.remove(HIT);
       allCells[i].classList.remove(DIM);
@@ -420,21 +465,11 @@ object InjectedScripts {
     if (!NEEDLE) return 0;
     var needle = NEEDLE.toLowerCase();
 
-    // Ищем только среди ячеек занятий: первая колонка — день недели.
+    // Ищем по всем ячейкам, включая первую колонку и страницы преподавателей.
     var hits = [];
-    var tables = document.getElementsByTagName('TABLE');
-    for (var t = 0; t < tables.length; t++) {
-      var rows = tables[t].rows;
-      if (!rows) continue;
-      for (var r = 0; r < rows.length; r++) {
-        var cells = rows[r].cells;
-        if (!cells || cells.length < 2) continue;
-        if (!/^([А-Яа-яЁё]{3})\s*,/.test(txt(cells[0]))) continue;
-        for (var c = 1; c < cells.length; c++) {
-          var text = txt(cells[c]);
-          if (text && text.toLowerCase().indexOf(needle) >= 0) hits.push(cells[c]);
-        }
-      }
+    for (var c = 0; c < allCells.length; c++) {
+      var text = txt(allCells[c]);
+      if (text && matches(text)) hits.push(allCells[c]);
     }
 
     if (!hits.length) return 0;
@@ -530,6 +565,15 @@ img, video { max-width: 100% !important; height: auto !important; }
   opacity: 0.5 !important;
   outline: 2px dashed rgba(46, 91, 255, 0.7) !important;
   outline-offset: -2px !important;
+}
+.tt-homework {
+  margin-top: 4px !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  background: rgba(255, 193, 7, 0.22) !important;
+  color: #7a5200 !important;
+  font-size: 0.9em !important;
+  font-weight: 500 !important;
 }
 /* Текущий день недели. */
 .tt-today > td { background: rgba(46, 91, 255, 0.10) !important; }

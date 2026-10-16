@@ -24,6 +24,12 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.text.InputType
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -327,7 +333,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun showFilterSheet() {
         val sheet = FilterBottomSheet()
         sheet.pairCount = prefs.lastPairCount
-        sheet.taggedCount = prefs.optionalCells.size
+        sheet.taggedCount = prefs.optionalCount(cachedSchedule)
         sheet.onApply = { state ->
             prefs.hiddenPairs = state.hiddenPairs
             prefs.hideEmptyDays = state.hideEmptyDays
@@ -372,7 +378,7 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
     private fun applyCellTags() {
         if (binding.webView.url == null) return
         binding.webView.evaluateJavascript(
-            InjectedScripts.cellTags(resolveTaggedCells()), null
+            InjectedScripts.cellTags(resolveTaggedCells(), resolveHomework()), null
         )
     }
 
@@ -398,21 +404,61 @@ class MainActivity : AppCompatActivity(), WebAppInterface.Listener {
         return out
     }
 
-    /** Тап по паре в расписании: пометить необязательной или снять пометку. */
-    override fun onOptionalToggle(cellKey: String, optional: Boolean) {
+    private fun resolveHomework(): Map<String, String> =
+        cachedSchedule?.let { prefs.homeworkCells(it) }.orEmpty()
+
+    /** Нажатие на пару открывает меню ДЗ и необязательной пометки. */
+    override fun onLessonClick(cellKey: String) {
         val parts = cellKey.split('|')
         val date = parts.getOrNull(0)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         val pair = parts.getOrNull(1)?.toIntOrNull()
         if (date == null || pair == null) return
+        val schedule = cachedSchedule ?: return
+        val lesson = schedule.day(date)?.lessonAt(pair) ?: return
+        val existingHomework = prefs.homework(schedule, date, pair)
+        val spacing = (12 * resources.displayMetrics.density).toInt()
 
-        prefs.setCellOptional(date, pair, optional, cachedSchedule)
-        Toast.makeText(
-            this,
-            if (optional) R.string.tag_marked else R.string.tag_unmarked,
-            Toast.LENGTH_SHORT
-        ).show()
-        updateNextLessonBar()
-        cachedSchedule?.let { WidgetRenderer.updateAll(this) }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(spacing, 0, spacing, 0)
+        }
+        val details = TextView(this).apply {
+            text = listOf(lesson.subject, lesson.subtitle())
+                .filter { it.isNotBlank() }
+                .joinToString("\n")
+        }
+        val homework = EditText(this).apply {
+            hint = "Домашнее задание"
+            setText(existingHomework?.text.orEmpty())
+            minLines = 2
+            gravity = android.view.Gravity.TOP
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        }
+        val resetHomework = CheckBox(this).apply {
+            text = "Сбросить через неделю"
+            isChecked = existingHomework?.expiresAt != null
+        }
+        val optional = CheckBox(this).apply {
+            text = "Пометить как необязательную"
+            isChecked = prefs.isCellOptional(date, pair, schedule)
+        }
+        content.addView(details)
+        content.addView(homework)
+        content.addView(resetHomework)
+        content.addView(optional)
+
+        AlertDialog.Builder(this)
+            .setTitle("Пара ${pair} · ${ScheduleLogic.dateLabel(date)}")
+            .setView(content)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить") { _, _ ->
+                prefs.setHomework(schedule, date, pair, homework.text.toString(), resetHomework.isChecked)
+                prefs.setCellOptional(date, pair, optional.isChecked, schedule)
+                applyCellTags()
+                updateNextLessonBar()
+                WidgetRenderer.updateAll(this)
+            }
+            .show()
     }
 
     // --- Поиск по парам -----------------------------------------------------

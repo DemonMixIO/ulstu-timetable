@@ -92,6 +92,13 @@ data class Schedule(
 ) {
     val days: List<DaySchedule> get() = weeks.flatMap { it.days }
 
+    /** Стабильный идентификатор открытого расписания для локальных пометок и ДЗ. */
+    fun scopeKey(): String = sourceUrl
+        .substringBefore('#')
+        .substringBefore('?')
+        .trimEnd('/')
+        .lowercase()
+
     fun day(date: LocalDate): DaySchedule? = days.firstOrNull { it.date == date }
 
     /** Номер недели, в которую попадает дата. */

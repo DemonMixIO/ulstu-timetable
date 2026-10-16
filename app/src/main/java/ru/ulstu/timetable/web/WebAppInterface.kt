@@ -22,8 +22,8 @@ class WebAppInterface(private val listener: Listener) {
             html: String
         )
 
-        /** Тап по паре в расписании: пометить её необязательной или снять пометку. */
-        fun onOptionalToggle(cellKey: String, optional: Boolean)
+        /** Нажатие на пару открывает контекстное меню. */
+        fun onLessonClick(cellKey: String)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -35,7 +35,7 @@ class WebAppInterface(private val listener: Listener) {
     }
 
     @JavascriptInterface
-    fun onOptionalToggle(cellKey: String, optional: Boolean) {
-        main.post { listener.onOptionalToggle(cellKey, optional) }
+    fun onLessonClick(cellKey: String) {
+        main.post { listener.onLessonClick(cellKey) }
     }
 }

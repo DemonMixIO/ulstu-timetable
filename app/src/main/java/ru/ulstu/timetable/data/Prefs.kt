@@ -2,12 +2,22 @@ package ru.ulstu.timetable.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.appcompat.app.AppCompatDelegate
+import org.json.JSONObject
 import ru.ulstu.timetable.Constants
 import ru.ulstu.timetable.model.LessonSlot
 import ru.ulstu.timetable.model.Schedule
 import ru.ulstu.timetable.model.ScheduleLogic
 import java.time.LocalDate
+
+data class HomeworkEntry(
+    val scope: String,
+    val date: LocalDate,
+    val pair: Int,
+    val text: String,
+    val expiresAt: Long?
+)
 
 /**
  * Все настройки и «последнее открытое окно» приложения.
@@ -110,31 +120,110 @@ class Prefs(context: Context) {
         get() = sp.getStringSet(KEY_OPTIONAL_CELLS, emptySet()) ?: emptySet()
         set(v) = sp.edit().putStringSet(KEY_OPTIONAL_CELLS, v).apply()
 
-    /** Помечена ли конкретная пара (учитываем и ключ по чётности, и запасной по дате). */
+    /** Помечена ли конкретная пара в текущем расписании. */
     fun isCellOptional(date: LocalDate, pairIndex: Int, schedule: Schedule?): Boolean {
-        if ("$date|$pairIndex" in optionalCells) return true
-        val key = schedule?.markKey(date, pairIndex) ?: return false
-        return key in optionalCells
+        schedule ?: return false
+        val scope = schedule.scopeKey()
+        val scopedKey = "$scope|$date|$pairIndex"
+        if (scopedKey in optionalCells) return true
+        val parityKey = schedule.markKey(date, pairIndex)
+        return "$scope|$parityKey" in optionalCells
     }
 
-    /** Ставит или снимает пометку; по возможности храним ключ по чётности недели. */
+    /** Ставит или снимает пометку только в текущем расписании. */
     fun setCellOptional(
         date: LocalDate,
         pairIndex: Int,
         optional: Boolean,
         schedule: Schedule?
     ) {
+        schedule ?: return
         val current = optionalCells.toMutableSet()
-        val dateKey = "$date|$pairIndex"
+        val scope = schedule.scopeKey()
+        val dateKey = "$scope|$date|$pairIndex"
         val parityKey = schedule?.markKey(date, pairIndex)
         if (optional) {
-            current.add(parityKey ?: dateKey)
+            current.add(if (parityKey != null) "$scope|$parityKey" else dateKey)
         } else {
             current.remove(dateKey)
-            if (parityKey != null) current.remove(parityKey)
+            if (parityKey != null) current.remove("$scope|$parityKey")
         }
         optionalCells = current
     }
+
+    fun optionalCount(schedule: Schedule?): Int {
+        val scope = schedule?.scopeKey() ?: return 0
+        return optionalCells.count { it.startsWith("$scope|") }
+    }
+
+    private fun homeworkEntries(): MutableList<HomeworkEntry> {
+        val now = System.currentTimeMillis()
+        val valid = ArrayList<HomeworkEntry>()
+        val raw = homeworkItems.toMutableSet()
+        for (item in raw) {
+            runCatching {
+                val json = JSONObject(item)
+                val expires = json.optLong("expiresAt", 0L).takeIf { it > 0L }
+                val entry = HomeworkEntry(
+                    scope = json.getString("scope"),
+                    date = LocalDate.parse(json.getString("date")),
+                    pair = json.getInt("pair"),
+                    text = String(Base64.decode(json.getString("text"), Base64.DEFAULT), Charsets.UTF_8),
+                    expiresAt = expires
+                )
+                if (expires == null || expires > now) valid += entry
+            }
+        }
+        val encoded = valid.mapTo(mutableSetOf()) { encodeHomework(it) }
+        if (encoded != raw) homeworkItems = encoded
+        return valid
+    }
+
+    fun homework(schedule: Schedule, date: LocalDate, pair: Int): HomeworkEntry? =
+        homeworkEntries().firstOrNull {
+            it.scope == schedule.scopeKey() && it.date == date && it.pair == pair
+        }
+
+    fun homeworkCells(schedule: Schedule): Map<String, String> = homeworkEntries()
+        .filter { it.scope == schedule.scopeKey() }
+        .associate { "${it.date}|${it.pair}" to it.text }
+
+    fun setHomework(
+        schedule: Schedule,
+        date: LocalDate,
+        pair: Int,
+        text: String,
+        resetAfterWeek: Boolean
+    ) {
+        val scope = schedule.scopeKey()
+        val entries = homeworkEntries()
+            .filterNot { it.scope == scope && it.date == date && it.pair == pair }
+            .toMutableList()
+        if (text.isNotBlank()) {
+            entries += HomeworkEntry(
+                scope = scope,
+                date = date,
+                pair = pair,
+                text = text.trim(),
+                expiresAt = if (resetAfterWeek) {
+                    System.currentTimeMillis() + 7L * 24L * 60L * 60L * 1000L
+                } else null
+            )
+        }
+        homeworkItems = entries.mapTo(mutableSetOf()) { encodeHomework(it) }
+    }
+
+    private fun encodeHomework(entry: HomeworkEntry): String = JSONObject().apply {
+        put("scope", entry.scope)
+        put("date", entry.date.toString())
+        put("pair", entry.pair)
+        put("text", Base64.encodeToString(entry.text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+        put("expiresAt", entry.expiresAt ?: 0L)
+    }.toString()
+
+    private var homeworkItems: Set<String>
+        get() = sp.getStringSet(KEY_HOMEWORK, emptySet()) ?: emptySet()
+        set(value) = sp.edit().putStringSet(KEY_HOMEWORK, value).apply()
 
     /** Не показывать необязательные пары в виджете и напоминаниях. */
     var skipOptionalInWidget: Boolean
@@ -283,6 +372,7 @@ class Prefs(context: Context) {
         private const val KEY_THEME = "theme_mode"
         private const val KEY_HIDDEN_PAIRS = "hidden_pairs"
         private const val KEY_OPTIONAL_CELLS = "optional_cells"
+        private const val KEY_HOMEWORK = "homework_items"
         private const val KEY_SKIP_OPTIONAL = "skip_optional_in_widget"
         private const val KEY_SUBGROUP_ENABLED = "subgroup_enabled"
         private const val KEY_SUBGROUP = "subgroup"
