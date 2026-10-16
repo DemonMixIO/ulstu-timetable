@@ -2,6 +2,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="schedule_cache.json" />
+        <include domain="sharedpref" path="." />
         <exclude domain="sharedpref" path="timetable_prefs.xml" />
     </cloud-backup>
     <device-transfer>
